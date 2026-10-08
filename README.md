@@ -1,3 +1,108 @@
+# Tâche 2 : Génération de tests et analyse de mutation
+
+## Référentiel et documentation
+
+- Référentiel du projet : [Chrisamy/tika](https://github.com/Chrisamy/tika)
+- Ce document : [README.md](https://github.com/Chrisamy/tika/blob/main/README.md)
+
+## Objectif et périmètre
+
+Cette étude porte sur une classe du module Maven `tika-serialization` :
+`org.apache.tika.serialization.ComponentNameResolver`.
+
+La classe a été retenue parce qu’elle possède déjà des tests, mais n’est pas
+couverte entièrement. Le test
+`ComponentNameResolverTest.unregisteredComponentGivesActionableMessage`
+vérifie le rejet d’un nom de composant inconnu et la présence d’explications
+utiles dans l’exception.
+L’analyse JaCoCo de l’ensemble des tests du module indique une couverture
+partielle, et PIT trouve des mutants vivants, répondant bien au
+critère de sélection de la tâche.
+
+## Couverture et mutants avec les tests existants
+
+JaCoCo, exécuté avec les tests du module, rapporte pour
+`ComponentNameResolver` :
+
+| Mesure | Résultat |
+| --- | ---: |
+| Lignes couvertes | 92 / 117 (79 %) |
+| Branches couvertes | 35 / 50 (70 %) |
+ 
+PIT 1.30.0 et son adaptateur JUnit 5 1.2.3 ont été exécutés sur le module.
+Le dernier rapport exploratoire ciblait l’ensemble des classes de
+sérialisation et de chargement de configuration. Pour la classe choisie, le
+rapport PIT indique :
+
+| Mesure | Résultat |
+| --- | ---: |
+| Lignes mutées exécutées | 91 / 119 (76 %) |
+| Mutants tués | 19 / 39 (49 %) |
+| Mutants survivants | 10 / 39 |
+| Mutants sans couverture | 10 / 39 |
+
+Le résultat de 19 mutants tués sur 39 est la mesure propre à la classe; le
+score global de 49 % sur 670 mutants (330 tués) concerne le périmètre
+exploratoire plus large et n’est pas le score de la classe seule.
+
+Les mutants tués concernent notamment les résultats de `resolveClass`,
+`getComponentInfo`, `getFriendlyName`, `isWireBlocked` et
+`determineContextKey`. Les tests existants exercent des chemins de résolution
+et de désérialisation de ParseContext et vérifient leurs conséquences
+observables : résultat ou exception, choix de clé, ainsi que l’autorisation ou
+le blocage des clés de contexte.
+
+Les survivants sont concentrés dans les comportements suivants :
+
+| Méthode | Mutants survivants | Comportement à mieux vérifier |
+| --- | ---: | --- |
+| `unregisteredMessage` | 5 | Cas sans composant enregistré, séparateurs de la liste, limite de 50 noms et suffixe signalant les entrées omises |
+| `getFriendlyName` | 1 | Valeur de repli lorsqu’aucun nom convivial n’est trouvé |
+| `findContextKeyInterface` | 1 | Retour de l’interface correspondant à un type qui en implémente une |
+| `usesCompactFormat` | 2 | Différence entre un type utilisant une clé de contexte compacte et un type ordinaire |
+| `determineContextKey` | 1 | Repli sur la classe du composant quand aucune clé explicite ou interface ne s’applique |
+
+Dix autres mutants n’ont pas été couverts par les tests détectés par PIT :
+ils se trouvent dans `hasComponent`, `hasImplementationsOf`,
+`isWireInstantiable` et `getContextKey`. Ils ne sont pas comptabilisés comme
+des survivants exécutés : leurs instructions mutées n’ont pas été atteintes.
+
+Le rapport est généré sous `tika-serialization/target/pit-reports/`. Pour
+reproduire une mesure centrée sur la classe choisie :
+
+```powershell
+.\mvnw.cmd -pl tika-serialization org.pitest:pitest-maven:1.30.0:mutationCoverage "-DtargetClasses=org.apache.tika.serialization.ComponentNameResolver" "-DtargetTests=org.apache.tika.serialization.*Test"
+```
+
+## Configuration ChatUniTest et modèle local
+
+Le plugin ChatUniTest 2.1.1 est configuré dans
+`tika-serialization/pom.xml`.
+
+Les répertoires configurés pour les données temporaires et les tests générés
+sont `tika-serialization/target/chatunitest-info` et
+`tika-serialization/target/chatunitest-generated`.
+
+Pour générer des tests de la classe sélectionnée, Ollama doit être lancé et
+l’alias local doit être disponible. Les commandes prévues sont :
+
+```powershell
+ollama list
+.\mvnw.cmd -pl tika-serialization -am install "-DskipTests"
+.\mvnw.cmd -f tika-serialization/pom.xml chatunitest:class "-DselectClass=org.apache.tika.serialization.ComponentNameResolver"
+```
+
+## Résultats de génération et évaluation des tests
+
+
+## Tests manuels supplémentaires
+
+
+## Exécution dans l’intégration continue
+
+
+## Documentation générale du projet Apache Tika
+
 Welcome to Apache Tika  <https://tika.apache.org/>
 =================================================
 
