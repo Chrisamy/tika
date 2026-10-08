@@ -130,6 +130,18 @@
         </executions>
       </plugin>
       <plugin>
+        <groupId>io.github.zju-aces-ise</groupId>
+        <artifactId>chatunitest-maven-plugin</artifactId>
+        <version>2.1.1</version>
+        <configuration>
+          <apiKeys>ollama</apiKeys>
+          <model>code-llama</model>
+          <url>http://localhost:11434/v1/chat/completions</url>
+          <tmpOutput>${project.build.directory}/chatunitest-info</tmpOutput>
+          <testOutput>${project.build.directory}/chatunitest-generated</testOutput>
+        </configuration>
+      </plugin>
+      <plugin>
         <groupId>org.pitest</groupId>
         <artifactId>pitest-maven</artifactId>
         <version>1.30.0</version>
