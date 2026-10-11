@@ -240,9 +240,9 @@
               <consoleOutput>false</consoleOutput>
               <includeTestSourceDirectory>true</includeTestSourceDirectory>
               <testSourceDirectories>${project.basedir}/src/test/java</testSourceDirectories>
-              <!-- ChatUniTest-generated tests (Class_method_N_M_Test) keep the plugin's import block
-                   (wildcards, unused imports); spotless still normalizes them -->
-              <excludes>**/*_*_*_Test.java</excludes>
+              <!-- ChatUniTest-generated tests keep the plugin's import block (wildcards, unused imports);
+                   ComponentNameResolverTest holds them unchanged as @Nested classes. spotless still normalizes them -->
+              <excludes>**/*_*_*_Test.java,**/ComponentNameResolverTest.java</excludes>
               <violationSeverity>error</violationSeverity>
               <failOnViolation>true</failOnViolation>
             </configuration>
