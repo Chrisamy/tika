@@ -94,6 +94,109 @@ ollama list
 
 ## Résultats de génération et évaluation des tests
 
+### Retour d'expérience avec ChatUniTest
+
+J'ai passé pas mal de temps à faire fonctionner ChatUniTest sur
+`ComponentNameResolver`. Les difficultés venaient autant de l'environnement
+que du plugin et des tests générés. Je garde ici les problèmes rencontrés et
+ce qui a fini par aider; ce n'est pas encore un résultat entièrement terminé.
+
+**Environnement utilisé :** ChatUniTest Maven plugin 2.1.1, Java 25, Maven
+3.9.12 (wrapper), Ollama en local, ordinateur portable avec Ryzen 9 7940HS,
+16 Go de RAM et RTX 4060 Laptop avec 8 Go de VRAM.
+
+#### Ollama et choix du modèle
+
+| Problème | Cause trouvée | Solution ou résultat |
+| --- | --- | --- |
+| Génération très lente et prompts tronqués | Ollama tournait sur le CPU et utilisait son contexte par défaut de 4096 tokens; les longs prompts de réparation étaient coupés. | J'ai créé un alias de modèle Ollama avec `num_ctx 8192` et `temperature 0.2`. |
+| Le modèle 7B ne produisait jamais de test compilable | `qwen2.5-coder:7b` répétait les mêmes erreurs de réparation : constructeur ou champs privés, import manquant de `java.lang.reflect.Field`, et `thenReturn` appliqué à `Class<?>`. | Je suis passé à `qwen2.5-coder:14b`. |
+| Le modèle 14B produisait presque plus rien | Il ne tient pas dans les 8 Go de VRAM. Avec une partie du modèle sur le GPU, la RAM manquait et Windows utilisait le disque (10–14 Go réservés, environ 4 Go réellement en RAM). | J'ai défini `OLLAMA_FLASH_ATTENTION=1` et `OLLAMA_KV_CACHE_TYPE=q8_0`, puis `num_gpu 38` dans l'alias. Ainsi, 38 des 49 couches (75 %) sont sur le GPU. Le débit obtenu était de 6–9 tokens/s, sans pagination disque. |
+
+#### Configuration du plugin et dépendances
+
+J'ai rencontré l'erreur Mockito
+`Could not initialize plugin: interface org.mockito.plugins.MockMaker` dans
+tous les tests. `chatunitest-starter:1.4.0` apporte Byte Buddy 1.10.20 et
+Mockito 3.8. Maven choisissait cette version de Byte Buddy avant Mockito, alors
+que Mockito 5.23 demande la version 1.17.7, compatible avec Java 25. J'ai
+épinglé `byte-buddy` et `byte-buddy-agent` en version 1.17.7 dans la portée
+`test`, puis vérifié qu'il était possible de créer un mock sur Java 25.
+
+#### Prompts personnalisés
+
+Les prompts intégrés ont provoqué beaucoup d'échecs. Quand `promptPath` est
+défini, le plugin charge ses modèles depuis ce dossier. J'ai copié les 21
+modèles d'origine dans `tika-serialization/chatunitest-prompts/`, puis adapté
+`initial_system.ftl`, `initial.ftl` et `repair.ftl`.
+
+| Problème dans les tests générés | Changement apporté aux prompts |
+| --- | --- |
+| Le modèle utilisait la réflexion sur des membres privés; les tests échouaient ensuite sur `setAccessible`, `InvocationTargetException` ou des imports manquants. | Les prompts d'origine recommandaient la réflexion et Mockito 3. J'ai demandé de n'utiliser que l'API publique, de ne pas accéder aux membres privés, d'utiliser Mockito 5, de simuler les collaborateurs plutôt que de les construire, d'utiliser `doReturn` pour `Class<?>`, d'éviter `MockitoExtension` (stubs stricts), de tenir compte de l'état statique partagé et d'écrire tous les imports. |
+| Le modèle ne connaissait pas l'effet de certaines méthodes. | Le contexte du plugin ne listait que 4 des 17 méthodes publiques. Les prompts extraient maintenant toute l'API publique depuis le code de la classe (`file_content`) et l'incluent dans les deux prompts. |
+| Le modèle inventait des méthodes, par exemple `ComponentConfig.getRegistry()`. | J'ai ajouté une règle qui limite le modèle aux méthodes listées, ainsi que `gen_api_ref.py`. Ce script utilise `javap` pour écrire les API publiques des types du projet mentionnés dans les signatures de la classe (dont `ComponentRegistry`, `ComponentInfo`, `ComponentConfig` et `ComponentConfig.Builder`) sous `api/<Classe>.txt`. Le prompt de réparation demande de supprimer un appel si l'erreur indique `cannot find symbol: method`. |
+| Le modèle testait toute la classe, ce qui ramenait l'accès aux champs privés et les appels inventés comme `register...`. | J'ai précisé qu'il fallait tester uniquement la méthode ciblée et ajouté une expression régulière dans les prompts pour retirer les déclarations de champs `private ...;` de la source de cette méthode. |
+| Certains messages d'erreur étaient tronqués (par exemple `...with modifiers `). | Je n'ai pas trouvé de réglage du plugin pour corriger ce comportement. |
+
+#### Comportements du plugin observés
+
+- Un test est considéré comme réussi si ses seules erreurs sont des échecs
+  d'assertion (`AbstractRunner: isOnlyAssertionError`). Les tests en échec
+  ne sont supprimés (`removeErrorTest`) que pour les autres types d'erreur.
+  Les fichiers sauvegardés peuvent donc contenir des échecs : dans mon
+  résultat, 5 des 16 méthodes de test échouaient.
+- Les accesseurs simples sont ignorés, notamment `getContextKeyInterfaces`,
+  `getWireInstantiableContextKeys` et `getWireBlockedContextKeys`. Le plugin
+  n'a donc essayé que 14 des 17 méthodes publiques.
+
+#### Résultats des essais
+
+| Essai | Modèle et configuration | Résultat |
+| --- | --- | --- |
+| 1 | 7B, CPU, prompts d'origine, `maxRounds=2` | Aucun test; arrêt pendant la première méthode. |
+| 2 | 7B, GPU, prompts d'origine | Aucune des 6 méthodes n'a abouti; génération interrompue. |
+| 3 | 14B, prompts d'origine, avant la correction de Byte Buddy | Les tests compilaient, mais échouaient avec l'erreur MockMaker. |
+| 4 | 14B, prompts d'origine | Aucun test; arrêt après 2 méthodes. |
+| 5 | 14B, règles personnalisées v1 | Aucun test; méthode `getRegistry()` inventée. |
+| 6 | 14B, règle « utiliser uniquement les méthodes listées » et références d'API (v2) | Aucun test; champs privés et méthodes inventées, puis arrêt. |
+| 7 | 14B, prompts v3 limités à la méthode ciblée, 38 couches GPU | 5 méthodes tentées sur 14; 16 tests produits, 11 réussis et 5 en échec. |
+
+#### Ce qu'il reste à faire
+
+Le contenu des blocs statiques n'est pas inclus dans les prompts. Cinq
+méthodes dépendent des listes d'interfaces initialisées dans `static { ... }` :
+`isWireInstantiable`, `isWireBlocked`, `findContextKeyInterface`,
+`usesCompactFormat` et `determineContextKey`. Il faudrait inclure ces blocs
+dans les modèles et relancer la génération pour ces méthodes.
+
+Le modèle 14B n'a pas corrigé plusieurs problèmes :
+
+- `hasImplementationsOf` appelle `REGISTRIES.clear()` sur un champ privé.
+- `registerComponentConfig` importe `ComponentConfig` depuis le mauvais
+  package.
+- `getComponentConfig` utilise `thenReturn(Class<?>)`.
+- `getContextKey` échoue à la compilation durant les cinq tours; je n'ai pas
+  encore vérifié le détail des erreurs.
+
+Les tests qui échouent sont conservés par le plugin. Il faut donc les retirer
+ou régénérer les méthodes concernées avant de copier les tests dans
+`src/test/java`. Je n'ai pas encore utilisé l'objectif de copie du plugin, ni
+vérifié que les tests passent avec `mvn test`, Checkstyle et Spotless.
+
+#### Fichiers et réglages concernés
+
+Dans le dépôt, les changements liés à cet essai sont :
+
+- `tika-serialization/pom.xml` : configuration du plugin, versions de Byte
+  Buddy, chemin des prompts et exclusion RAT.
+- `tika-serialization/chatunitest-prompts/` : modèles personnalisés,
+  `gen_api_ref.py` et `api/ComponentNameResolver.txt`.
+
+Hors du dépôt, j'ai aussi créé l'alias Ollama `code-llama` (modèle
+`qwen2.5-coder:14b`, `num_ctx 8192`, `num_gpu 38`, température 0.2) et défini
+les variables d'environnement utilisateur `OLLAMA_FLASH_ATTENTION` et
+`OLLAMA_KV_CACHE_TYPE`.
+
 
 ## Tests manuels supplémentaires
 
