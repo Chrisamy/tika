@@ -69,6 +69,38 @@
       <scope>test</scope>
     </dependency>
     <dependency>
+      <groupId>io.github.ZJU-ACES-ISE</groupId>
+      <artifactId>chatunitest-starter</artifactId>
+      <version>1.4.0</version>
+      <type>pom</type>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-junit-jupiter</artifactId>
+      <version>${mockito-junit-jupiter.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <!-- chatunitest-starter drags in byte-buddy 1.10.20, which breaks Mockito 5 on Java 25;
+         pin the version Mockito 5.23 expects -->
+    <dependency>
+      <groupId>net.bytebuddy</groupId>
+      <artifactId>byte-buddy</artifactId>
+      <version>1.17.7</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>net.bytebuddy</groupId>
+      <artifactId>byte-buddy-agent</artifactId>
+      <version>1.17.7</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
       <groupId>com.fasterxml.jackson.dataformat</groupId>
       <artifactId>jackson-dataformat-smile</artifactId>
       <scope>test</scope>
@@ -95,6 +127,7 @@
         <configuration>
           <inputExcludes>
             <inputExclude>**/test-documents/**</inputExclude>
+            <inputExclude>chatunitest-prompts/**</inputExclude>
           </inputExcludes>
         </configuration>
       </plugin>
@@ -135,8 +168,20 @@
         <version>2.1.1</version>
         <configuration>
           <apiKeys>ollama</apiKeys>
+          <!-- "code-llama" is an Ollama alias of qwen2.5-coder:7b with num_ctx 8192 (plugin only accepts its hardcoded model names) -->
           <model>code-llama</model>
           <url>http://localhost:11434/v1/chat/completions</url>
+          <thread>false</thread>
+          <maxThreads>1</maxThreads>
+          <testNumber>1</testNumber>
+          <maxRounds>5</maxRounds>
+          <maxPromptTokens>6000</maxPromptTokens>
+          <maxResponseTokens>1536</maxResponseTokens>
+          <temperature>0.2</temperature>
+          <dependencyDepth>1</dependencyDepth>
+          <!-- copy of the plugin's templates; initial_system/initial/repair.ftl are adapted
+               (no reflection, Mockito 5, public API of the focal class shown to the model) -->
+          <promptPath>${project.basedir}/chatunitest-prompts</promptPath>
           <tmpOutput>${project.build.directory}/chatunitest-info</tmpOutput>
           <testOutput>${project.build.directory}/chatunitest-generated</testOutput>
         </configuration>
