@@ -96,106 +96,110 @@ ollama list
 
 ### Retour d'expérience avec ChatUniTest
 
-J'ai passé pas mal de temps à faire fonctionner ChatUniTest sur
-`ComponentNameResolver`. Les difficultés venaient autant de l'environnement
-que du plugin et des tests générés. Je garde ici les problèmes rencontrés et
-ce qui a fini par aider; ce n'est pas encore un résultat entièrement terminé.
+J'ai fini par obtenir un résultat utilisable, mais il a fallu pas mal
+d'essais pour arriver à des tests qui compilent et ne perturbent pas les
+autres tests du module.
 
-**Environnement utilisé :** ChatUniTest Maven plugin 2.1.1, Java 25, Maven
-3.9.12 (wrapper), Ollama en local, ordinateur portable avec Ryzen 9 7940HS,
-16 Go de RAM et RTX 4060 Laptop avec 8 Go de VRAM.
+**Environnement :** ChatUniTest Maven plugin 2.1.1, Java 25, Maven 3.9.12
+(wrapper), Ollama en local, Ryzen 9 7940HS, 16 Go de RAM et RTX 4060 Laptop
+avec 8 Go de VRAM.
 
-#### Ollama et choix du modèle
+#### Résultat final
 
-| Problème | Cause trouvée | Solution ou résultat |
-| --- | --- | --- |
-| Génération très lente et prompts tronqués | Ollama tournait sur le CPU et utilisait son contexte par défaut de 4096 tokens; les longs prompts de réparation étaient coupés. | J'ai créé un alias de modèle Ollama avec `num_ctx 8192` et `temperature 0.2`. |
-| Le modèle 7B ne produisait jamais de test compilable | `qwen2.5-coder:7b` répétait les mêmes erreurs de réparation : constructeur ou champs privés, import manquant de `java.lang.reflect.Field`, et `thenReturn` appliqué à `Class<?>`. | Je suis passé à `qwen2.5-coder:14b`. |
-| Le modèle 14B produisait presque plus rien | Il ne tient pas dans les 8 Go de VRAM. Avec une partie du modèle sur le GPU, la RAM manquait et Windows utilisait le disque (10–14 Go réservés, environ 4 Go réellement en RAM). | J'ai défini `OLLAMA_FLASH_ATTENTION=1` et `OLLAMA_KV_CACHE_TYPE=q8_0`, puis `num_gpu 38` dans l'alias. Ainsi, 38 des 49 couches (75 %) sont sur le GPU. Le débit obtenu était de 6–9 tokens/s, sans pagination disque. |
+ChatUniTest a généré 77 cas de test, couvrant 16 des 17 méthodes publiques de
+`ComponentNameResolver`. Les tests retenus ont ensuite été regroupés dans
+`ComponentNameResolverTest.java`; leur logique vient de la génération. Les
+seuls retraits ont porté sur des méthodes de test complètes qui échouaient ou
+dépendaient de l'ordre d'exécution, et Spotless a fait le reformatage.
 
-#### Configuration du plugin et dépendances
+La commande `.\mvnw.cmd -pl tika-serialization test` a terminé avec succès :
+293 tests, 0 échec, 0 erreur et 2 tests ignorés. Les deux tests ignorés sont
+des cas existants de `ExternalParserTest` qui nécessitent des outils externes.
+J'ai aussi vérifié l'ordre d'exécution : chaque classe générée a été exécutée
+avant et après les tests existants, puis les tests ont été lancés dans
+plusieurs ordres aléatoires, à partir d'une copie figée des fichiers de build.
+Aucun échec n'est apparu.
 
-J'ai rencontré l'erreur Mockito
-`Could not initialize plugin: interface org.mockito.plugins.MockMaker` dans
-tous les tests. `chatunitest-starter:1.4.0` apporte Byte Buddy 1.10.20 et
-Mockito 3.8. Maven choisissait cette version de Byte Buddy avant Mockito, alors
-que Mockito 5.23 demande la version 1.17.7, compatible avec Java 25. J'ai
-épinglé `byte-buddy` et `byte-buddy-agent` en version 1.17.7 dans la portée
-`test`, puis vérifié qu'il était possible de créer un mock sur Java 25.
+| Méthode(s) | Cas générés conservés | Emplacement actuel |
+| --- | ---: | --- |
+| `registerRegistry`, `resolveClass`, `getFriendlyName`, `hasComponent`, `getComponentInfo` | 10 | `ComponentNameResolverTest.java` |
+| `isWireInstantiable` | 12 | `ComponentNameResolverTest.java` |
+| `isWireBlocked` | 13 | `ComponentNameResolverTest.java` |
+| `findContextKeyInterface` | 13 | `ComponentNameResolverTest.java` |
+| `usesCompactFormat` | 13 | `ComponentNameResolverTest.java` |
+| `determineContextKey` | 4 | `ComponentNameResolverTest.java` |
+| `getContextKey` | 5 | `ComponentNameResolverTest.java` |
+| `hasImplementationsOf` | 2 | `ComponentNameResolverTest.java` |
+| `registerComponentConfig` | 2 | `ComponentNameResolverTest.java` |
+| `getContextKeyInterfaces`, `getWireInstantiableContextKeys`, `getWireBlockedContextKeys` | 1 chacune | `ComponentNameResolverTest.java` |
+| `getComponentConfig` | 0 | Générés, mais écartés : ils perturbaient les tests existants ou dépendaient de l'ordre |
 
-#### Prompts personnalisés
+Les accesseurs simples ne sont pas tous sélectionnés pendant une génération
+complète. J'ai donc relancé certaines méthodes avec l'objectif ciblé du plugin
+et `-DselectMethod=ComponentNameResolver#<méthode>`.
 
-Les prompts intégrés ont provoqué beaucoup d'échecs. Quand `promptPath` est
-défini, le plugin charge ses modèles depuis ce dossier. J'ai copié les 21
-modèles d'origine dans `tika-serialization/chatunitest-prompts/`, puis adapté
-`initial_system.ftl`, `initial.ftl` et `repair.ftl`.
+#### Tests générés écartés
 
-| Problème dans les tests générés | Changement apporté aux prompts |
+J'ai supprimé 13 méthodes de test complètes et écarté une classe entière,
+après avoir reproduit les problèmes :
+
+| Tests retirés | Pourquoi |
 | --- | --- |
-| Le modèle utilisait la réflexion sur des membres privés; les tests échouaient ensuite sur `setAccessible`, `InvocationTargetException` ou des imports manquants. | Les prompts d'origine recommandaient la réflexion et Mockito 3. J'ai demandé de n'utiliser que l'API publique, de ne pas accéder aux membres privés, d'utiliser Mockito 5, de simuler les collaborateurs plutôt que de les construire, d'utiliser `doReturn` pour `Class<?>`, d'éviter `MockitoExtension` (stubs stricts), de tenir compte de l'état statique partagé et d'écrire tous les imports. |
-| Le modèle ne connaissait pas l'effet de certaines méthodes. | Le contexte du plugin ne listait que 4 des 17 méthodes publiques. Les prompts extraient maintenant toute l'API publique depuis le code de la classe (`file_content`) et l'incluent dans les deux prompts. |
-| Le modèle inventait des méthodes, par exemple `ComponentConfig.getRegistry()`. | J'ai ajouté une règle qui limite le modèle aux méthodes listées, ainsi que `gen_api_ref.py`. Ce script utilise `javap` pour écrire les API publiques des types du projet mentionnés dans les signatures de la classe (dont `ComponentRegistry`, `ComponentInfo`, `ComponentConfig` et `ComponentConfig.Builder`) sous `api/<Classe>.txt`. Le prompt de réparation demande de supprimer un appel si l'erreur indique `cannot find symbol: method`. |
-| Le modèle testait toute la classe, ce qui ramenait l'accès aux champs privés et les appels inventés comme `register...`. | J'ai précisé qu'il fallait tester uniquement la méthode ciblée et ajouté une expression régulière dans les prompts pour retirer les déclarations de champs `private ...;` de la source de cette méthode. |
-| Certains messages d'erreur étaient tronqués (par exemple `...with modifiers `). | Je n'ai pas trouvé de réglage du plugin pour corriger ce comportement. |
+| `registerRegistry_0_0`: `testRegisterRegistry`, `testRegisterRegistryWithExistingIndex` | L'assertion confondait le nom d'index avec un nom de composant; `hasComponent(indexName)` ne vérifie pas l'existence d'un registre. |
+| `hasComponent_4_0`: deux tests du cas où le composant n'existe pas | Assertions incorrectes, conservées par le plugin parce que seuls les échecs d'assertion ne font pas échouer sa génération. |
+| `getComponentInfo_5_0`: deux tests | Un test avait une assertion incorrecte; l'autre réutilisait un nom laissé dans le registre statique par un autre test et échouait selon l'ordre d'exécution. |
+| `hasImplementationsOf_6_0`: deux tests | L'un avait une assertion incorrecte; l'autre supposait qu'aucun composant réel n'implémente `Translator`, ce qui n'est pas vrai après le chargement des registres de Tika. |
+| `registerComponentConfig_7_0`: trois tests | Ils remplaçaient dans la map statique les configurations réelles de `Parser` et `Detector` par des fausses configurations, sans les restaurer; jusqu'à 23 tests existants pouvaient alors échouer. |
+| `getComponentConfig_8_0`: classe entière, deux tests | Le test d'un composant enregistré avait le même effet destructeur sur les configurations statiques; celui d'un composant non enregistré ne passait que si Tika n'avait pas encore initialisé son registre. |
 
-#### Comportements du plugin observés
+ChatUniTest marque parfois une classe comme réussie même si certaines
+assertions échouent. Il a lui-même retiré des méthodes non compilables de
+`resolveClass` et `getFriendlyName`, mais les échecs d'assertion ont dû être
+repérés en exécutant les tests séparément.
 
-- Un test est considéré comme réussi si ses seules erreurs sont des échecs
-  d'assertion (`AbstractRunner: isOnlyAssertionError`). Les tests en échec
-  ne sont supprimés (`removeErrorTest`) que pour les autres types d'erreur.
-  Les fichiers sauvegardés peuvent donc contenir des échecs : dans mon
-  résultat, 5 des 16 méthodes de test échouaient.
-- Les accesseurs simples sont ignorés, notamment `getContextKeyInterfaces`,
-  `getWireInstantiableContextKeys` et `getWireBlockedContextKeys`. Le plugin
-  n'a donc essayé que 14 des 17 méthodes publiques.
+#### Problèmes rencontrés et solutions
 
-#### Résultats des essais
+**Ollama et le modèle.** Ollama tournait d'abord sur le CPU avec un contexte
+de 4096 tokens, ce qui tronquait les prompts. J'ai créé l'alias `code-llama`
+avec un contexte de 8192 tokens, car le plugin n'accepte qu'une liste fixe de
+noms de modèles. La RTX 4060 n'avait pas été détectée au démarrage d'Ollama;
+un redémarrage propre a réglé le problème. Le modèle 7B ne corrigeait pas ses
+erreurs; le modèle 14B fonctionnait mieux, mais manquait de mémoire et
+utilisait le disque. J'ai défini `OLLAMA_FLASH_ATTENTION=1`,
+`OLLAMA_KV_CACHE_TYPE=q8_0` et `num_gpu 38` (38 couches sur 49 sur le GPU).
 
-| Essai | Modèle et configuration | Résultat |
-| --- | --- | --- |
-| 1 | 7B, CPU, prompts d'origine, `maxRounds=2` | Aucun test; arrêt pendant la première méthode. |
-| 2 | 7B, GPU, prompts d'origine | Aucune des 6 méthodes n'a abouti; génération interrompue. |
-| 3 | 14B, prompts d'origine, avant la correction de Byte Buddy | Les tests compilaient, mais échouaient avec l'erreur MockMaker. |
-| 4 | 14B, prompts d'origine | Aucun test; arrêt après 2 méthodes. |
-| 5 | 14B, règles personnalisées v1 | Aucun test; méthode `getRegistry()` inventée. |
-| 6 | 14B, règle « utiliser uniquement les méthodes listées » et références d'API (v2) | Aucun test; champs privés et méthodes inventées, puis arrêt. |
-| 7 | 14B, prompts v3 limités à la méthode ciblée, 38 couches GPU | 5 méthodes tentées sur 14; 16 tests produits, 11 réussis et 5 en échec. |
+**Plugin et build.** J'ai augmenté les limites de réparation à cinq tours et
+réglé `maxPromptTokens`, `maxResponseTokens`, `temperature` à 0.2 et
+`dependencyDepth` à 1. Le Byte Buddy 1.10.20 amené par
+`chatunitest-starter:1.4.0` empêchait Mockito de créer des mocks sur Java 25;
+j'ai épinglé `byte-buddy` et `byte-buddy-agent` à la version 1.17.7. Le
+starter amenait aussi JUnit 4, ce qui faisait choisir à Surefire le mauvais
+fournisseur : j'ai exclu `junit-vintage-engine`, `junit-platform-runner` et
+`junit:junit`. Checkstyle rejetait les imports générés (imports génériques et
+inutilisés); les classes ChatUniTest sont exclues de Checkstyle, mais restent
+formatées par Spotless. Enfin, l'objectif de copie du plugin remplace tout
+`src/test`; j'ai copié uniquement les fichiers de tests voulus.
 
-#### Ce qu'il reste à faire
+**Prompts.** Les prompts par défaut encourageaient la réflexion et Mockito 3.
+Je les ai adaptés pour imposer l'API publique, Mockito 5, les mocks des
+collaborateurs, `doReturn` pour les méthodes qui renvoient `Class<?>` et les
+imports explicites. Le contexte ne montrait que 4 méthodes sur 17 et le
+modèle inventait des appels. J'ai donc ajouté l'API publique complète, une
+règle de n'utiliser que les méthodes documentées et une référence générée
+avec `javap` par `gen_api_ref.py`. J'ai aussi limité chaque génération à la
+méthode ciblée, masqué les champs privés et inclus dans les prompts les blocs
+`static { ... }` qui initialisent les listes d'interfaces.
 
-Le contenu des blocs statiques n'est pas inclus dans les prompts. Cinq
-méthodes dépendent des listes d'interfaces initialisées dans `static { ... }` :
-`isWireInstantiable`, `isWireBlocked`, `findContextKeyInterface`,
-`usesCompactFormat` et `determineContextKey`. Il faudrait inclure ces blocs
-dans les modèles et relancer la génération pour ces méthodes.
+#### Fichiers et réglages
 
-Le modèle 14B n'a pas corrigé plusieurs problèmes :
-
-- `hasImplementationsOf` appelle `REGISTRIES.clear()` sur un champ privé.
-- `registerComponentConfig` importe `ComponentConfig` depuis le mauvais
-  package.
-- `getComponentConfig` utilise `thenReturn(Class<?>)`.
-- `getContextKey` échoue à la compilation durant les cinq tours; je n'ai pas
-  encore vérifié le détail des erreurs.
-
-Les tests qui échouent sont conservés par le plugin. Il faut donc les retirer
-ou régénérer les méthodes concernées avant de copier les tests dans
-`src/test/java`. Je n'ai pas encore utilisé l'objectif de copie du plugin, ni
-vérifié que les tests passent avec `mvn test`, Checkstyle et Spotless.
-
-#### Fichiers et réglages concernés
-
-Dans le dépôt, les changements liés à cet essai sont :
-
-- `tika-serialization/pom.xml` : configuration du plugin, versions de Byte
-  Buddy, chemin des prompts et exclusion RAT.
-- `tika-serialization/chatunitest-prompts/` : modèles personnalisés,
-  `gen_api_ref.py` et `api/ComponentNameResolver.txt`.
-
-Hors du dépôt, j'ai aussi créé l'alias Ollama `code-llama` (modèle
-`qwen2.5-coder:14b`, `num_ctx 8192`, `num_gpu 38`, température 0.2) et défini
-les variables d'environnement utilisateur `OLLAMA_FLASH_ATTENTION` et
-`OLLAMA_KV_CACHE_TYPE`.
+Les changements de configuration sont dans `tika-serialization/pom.xml` et
+les prompts personnalisés, le script `gen_api_ref.py` et
+`api/ComponentNameResolver.txt` sont dans
+`tika-serialization/chatunitest-prompts/`. Les tests sont dans
+`tika-serialization/src/test/java/org/apache/tika/serialization/`. Hors du
+dépôt, l'alias Ollama et les variables d'environnement
+`OLLAMA_FLASH_ATTENTION` et `OLLAMA_KV_CACHE_TYPE` restent propres à la
+machine utilisée.
 
 
 ## Tests manuels supplémentaires
