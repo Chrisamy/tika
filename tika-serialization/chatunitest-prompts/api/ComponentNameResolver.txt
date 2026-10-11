@@ -1,0 +1,44 @@
+public final class org.apache.tika.config.loader.ComponentInfo extends Record {
+  public org.apache.tika.config.loader.ComponentInfo(Class<?>, boolean);
+  public org.apache.tika.config.loader.ComponentInfo(Class<?>, boolean, Class<?>);
+  public Class<?> componentClass();
+  public boolean selfConfiguring();
+  public Class<?> contextKey();
+  public boolean isDefault();
+  public final String toString();
+  public final int hashCode();
+  public final boolean equals(Object);
+  public org.apache.tika.config.loader.ComponentInfo(Class<?>, boolean, Class<?>, boolean);
+}
+
+public class org.apache.tika.config.loader.ComponentRegistry {
+  public org.apache.tika.config.loader.ComponentRegistry(String, ClassLoader) throws org.apache.tika.exception.TikaConfigException;
+  public Class<?> getComponentClass(String) throws org.apache.tika.exception.TikaConfigException;
+  public org.apache.tika.config.loader.ComponentInfo getComponentInfo(String) throws org.apache.tika.exception.TikaConfigException;
+  public java.util.Map<String, org.apache.tika.config.loader.ComponentInfo> getAllComponents();
+  public java.util.Map<String, org.apache.tika.config.loader.ComponentInfo> getDefaultComponents();
+  public boolean hasComponent(String);
+  public String getFriendlyName(Class<?>);
+}
+
+public class org.apache.tika.serialization.ComponentConfig<T> {
+  public String getJsonField();
+  public Class<T> getComponentClass();
+  public boolean isLoadAsList();
+  public T wrapList(java.util.List<?>);
+  public boolean hasListWrapper();
+  public T getDefault();
+  public boolean hasDefault();
+  public boolean hasCustomLoader();
+  public org.apache.tika.config.loader.ComponentLoader<T> getCustomLoader();
+  public static <T> org.apache.tika.serialization.ComponentConfig.Builder<T> builder(String, Class<T>);
+}
+
+public class org.apache.tika.serialization.ComponentConfig.Builder<T> {
+  public org.apache.tika.serialization.ComponentConfig.Builder<T> loadAsList();
+  public org.apache.tika.serialization.ComponentConfig.Builder<T> wrapWith(java.util.function.Function<java.util.List<?>, T>);
+  public org.apache.tika.serialization.ComponentConfig.Builder<T> defaultProvider(java.util.function.Supplier<T>);
+  public org.apache.tika.serialization.ComponentConfig.Builder<T> customLoader(org.apache.tika.config.loader.ComponentLoader<T>);
+  public org.apache.tika.serialization.ComponentConfig<T> build();
+  public void register();
+}
