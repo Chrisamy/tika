@@ -22,6 +22,15 @@ The public API of the class `${class_name}` (use these methods to set up and to 
 ${sig?trim}
 </#list>
 ```
+<#assign static_blocks = file_content?matches(r"^[ \t]*static \{.*?^[ \t]*\}", "ms")>
+<#if static_blocks?has_content>
+Static initialization of `${class_name}`. It shows the fixed contents of its private collections; tests cannot change them, but can rely on these values when choosing inputs and expected results:
+```
+<#list static_blocks as block>
+${block}
+</#list>
+```
+</#if>
 </#if>
 
 API reference of the project types used by `${class_name}` (these are the only methods and constructors that exist on them):
@@ -42,4 +51,5 @@ Fix every error listed above and return the whole fixed unit test. Keep these ru
 - If a "cannot find symbol" error names a class, add the missing import.
 - If a "cannot find symbol" error names a method or constructor, it does not exist: delete that call and use only methods listed in the public API and API reference above.
 - If an assertion fails, re-read the source code of the method under test and assert what it actually does.
+- Never add to, remove from or clear the class's collections (also not through the sets returned by its getters, which are unmodifiable); pick inputs from the static initialization shown above instead.
 Return only the Java code in a single ```java block, with no explanation.

@@ -74,6 +74,20 @@
       <version>1.4.0</version>
       <type>pom</type>
       <scope>test</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>org.junit.vintage</groupId>
+          <artifactId>junit-vintage-engine</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.junit.platform</groupId>
+          <artifactId>junit-platform-runner</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>junit</groupId>
+          <artifactId>junit</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>org.mockito</groupId>
@@ -226,6 +240,9 @@
               <consoleOutput>false</consoleOutput>
               <includeTestSourceDirectory>true</includeTestSourceDirectory>
               <testSourceDirectories>${project.basedir}/src/test/java</testSourceDirectories>
+              <!-- ChatUniTest-generated tests (Class_method_N_M_Test) keep the plugin's import block
+                   (wildcards, unused imports); spotless still normalizes them -->
+              <excludes>**/*_*_*_Test.java</excludes>
               <violationSeverity>error</violationSeverity>
               <failOnViolation>true</failOnViolation>
             </configuration>

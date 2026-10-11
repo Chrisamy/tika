@@ -8,6 +8,16 @@ The public API of the focal class `${class_name}` (use these methods to set up a
 ${sig?trim}
 </#list>
 ```
+<#assign static_blocks = file_content?matches(r"^[ \t]*static \{.*?^[ \t]*\}", "ms")>
+<#if static_blocks?has_content>
+
+Static initialization of `${class_name}`. It shows the fixed contents of its private collections; tests cannot change them, but can rely on these values when choosing inputs and expected results:
+```
+<#list static_blocks as block>
+${block}
+</#list>
+```
+</#if>
 </#if>
 
 API reference of the project types used by `${class_name}` (these are the only methods and constructors that exist on them):
