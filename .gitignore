@@ -25,6 +25,3 @@ tika-grpc/ignite
 # Python bytecode (e.g. from .skills scripts)
 __pycache__/
 *.pyc
-
-# Tâche 2 — plan de travail local (non remis)
-tache2-plan-100pct.md

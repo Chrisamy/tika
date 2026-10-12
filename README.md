@@ -256,6 +256,15 @@ commande ne remplacent pas celles du POM : la commande de la section
 Les résultats ci-dessous sont filtrés sur `ComponentNameResolver`, à partir de
 `target/site/jacoco/jacoco.csv` et de `target/pit-reports/mutations.xml`.
 
+**Commit de la dernière mesure JaCoCo et PIT** (colonnes « Avec les tests
+générés » et « + tests manuels ») : [`8516c8b76`](https://github.com/Chrisamy/tika/commit/8516c8b76)
+sur le fork `Chrisamy/tika`, **2026-10-12**, après `clean test`, PIT comme ci-dessus,
+puis `jacoco:report` pour régénérer `jacoco.csv`. À ce commit, PIT filtré sur
+`ComponentNameResolver` rapporte **38 / 39** mutants tués (**97 %**) ; JaCoCo
+indique **117 / 117** lignes et **50 / 50** branches couvertes pour cette classe.
+La colonne « Tests d'origine » reste ancrée au commit `ffd712980` (état initial de
+`ComponentNameResolverTest`).
+
 ### Résultats
 
 | Mesure | Tests d'origine | Avec les tests générés | + tests manuels |
