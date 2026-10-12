@@ -410,6 +410,38 @@ un bloc `finally`.
 
 ## Exécution dans l’intégration continue
 
+### Exécution locale
+
+Les tests du module étudié (générés ChatUniTest + cinq tests manuels
+`manual…`) passent en local :
+
+```powershell
+.\mvnw.cmd -pl tika-serialization test
+```
+
+Dernière vérification : **2026-10-12** (Windows, JDK 17).
+
+### GitHub Actions (fork `Chrisamy/tika`)
+
+| Élément | Détail |
+| --- | --- |
+| Branche | `main` |
+| Commit poussé | [`4be6d89ca`](https://github.com/Chrisamy/tika/commit/4be6d89ca) — documentation mutation, tests manuels |
+| Workflow **tâche 2** (module) | [`tache2 tika-serialization tests`](https://github.com/Chrisamy/tika/actions/workflows/tache2-tika-serialization.yml) — `./mvnw -pl tika-serialization test` |
+| Workflow **projet** (upstream) | [`main jdk17 build`](https://github.com/Chrisamy/tika/actions/workflows/main-jdk17-build.yml) — `mvn clean apache-rat:check test install … -Pci` (inclut `tika-serialization` dans la suite Maven) |
+| Tableau des exécutions | [Actions — tous les workflows](https://github.com/Chrisamy/tika/actions) |
+
+**Activation (une fois sur un fork)** : tant que le propriétaire du fork n’a pas
+accepté l’exécution des workflows (onglet **Actions** → *I understand my
+workflows, go ahead and enable them*), GitHub n’enregistre **aucun** run après
+un `git push`. Après activation, un nouveau push sur `main` ou un lancement
+manuel (*Run workflow*) sur **tache2 tika-serialization tests** déclenche la CI.
+
+**Exécution réussie à lier ici** (à mettre à jour dès qu’un run est vert) :
+
+- Run **tache2 tika-serialization tests** : *(en attente d’activation Actions — remplacer par l’URL du run vert, ex. `https://github.com/Chrisamy/tika/actions/runs/<id>`)*
+- Résumé attendu : job `test` réussi ; suite JUnit incluant
+  `ComponentNameResolverTest` (y compris `@Nested ManualTests`).
 
 ## Documentation générale du projet Apache Tika
 
