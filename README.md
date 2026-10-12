@@ -412,11 +412,13 @@ un bloc `finally`.
 
 ### Exécution locale
 
-Les tests du module étudié (générés ChatUniTest + cinq tests manuels
-`manual…`) passent en local :
+Les tests de la tâche 2 (classe unique `ComponentNameResolverTest` : test
+initial, cas générés ChatUniTest, cinq tests manuels `manual…`) passent en
+local avec la même commande que la CI :
 
 ```powershell
-.\mvnw.cmd -pl tika-serialization test
+.\mvnw.cmd -pl tika-serialization -am install -DskipTests
+.\mvnw.cmd -pl tika-serialization test -Dtest=ComponentNameResolverTest
 ```
 
 Dernière vérification : **2026-10-12** (Windows, JDK 17).
@@ -427,8 +429,8 @@ Dernière vérification : **2026-10-12** (Windows, JDK 17).
 | --- | --- |
 | Branche | `main` |
 | Commit poussé | [`4be6d89ca`](https://github.com/Chrisamy/tika/commit/4be6d89ca) — documentation mutation, tests manuels |
-| Workflow **tâche 2** (module) | [`tache2 tika-serialization tests`](https://github.com/Chrisamy/tika/actions/workflows/tache2-tika-serialization.yml) — `./mvnw -pl tika-serialization test` |
-| Workflow **projet** (upstream) | [`main jdk17 build`](https://github.com/Chrisamy/tika/actions/workflows/main-jdk17-build.yml) — `mvn clean apache-rat:check test install … -Pci` (inclut `tika-serialization` dans la suite Maven) |
+| Workflow **tâche 2** (preuve CI) | [`tache2 tika-serialization tests`](https://github.com/Chrisamy/tika/actions/workflows/tache2-tika-serialization.yml) — compile les dépendances (`-am install -DskipTests`), puis **seulement** `-Dtest=ComponentNameResolverTest` |
+| Workflows **upstream** (hérités Tika) | p. ex. [`main jdk17 build`](https://github.com/Chrisamy/tika/actions/workflows/main-jdk17-build.yml) — suite Maven **complète** du projet ; **non** utilisés comme preuve de la tâche 2 |
 | Tableau des exécutions | [Actions — tous les workflows](https://github.com/Chrisamy/tika/actions) |
 
 **Activation (une fois sur un fork)** : tant que le propriétaire du fork n’a pas
@@ -440,8 +442,8 @@ manuel (*Run workflow*) sur **tache2 tika-serialization tests** déclenche la CI
 **Exécution réussie à lier ici** (à mettre à jour dès qu’un run est vert) :
 
 - Run **tache2 tika-serialization tests** : *(en attente d’activation Actions — remplacer par l’URL du run vert, ex. `https://github.com/Chrisamy/tika/actions/runs/<id>`)*
-- Résumé attendu : job `test` réussi ; suite JUnit incluant
-  `ComponentNameResolverTest` (y compris `@Nested ManualTests`).
+- Résumé attendu : job `test` réussi ; uniquement la classe
+  `ComponentNameResolverTest` (tests manuels + `@Nested` ChatUniTest).
 
 ## Documentation générale du projet Apache Tika
 
