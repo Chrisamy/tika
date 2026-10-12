@@ -17,11 +17,9 @@
 
 name: no split packages
 
+# Fork tâche 2 : contrôle JPMS désactivé sur push/PR (voir tache2-tika-serialization.yml).
 on:
-  pull_request:
-    branches: [ main ]
-  push:
-    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   check-split-packages:

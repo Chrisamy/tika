@@ -11,6 +11,9 @@ on:
     paths:
       - 'tika-serialization/**'
       - '.github/workflows/tache2-tika-serialization.yml'
+      - '.github/workflows/main-jdk*.yml'
+      - '.github/workflows/docker-*.yml'
+      - '.github/workflows/split-packages.yml'
   pull_request:
     branches: [ main ]
     paths:

@@ -17,12 +17,9 @@
 
 name: Docker snapshot - tika-server and tika-grpc
 
+# Fork tâche 2 : publication Docker désactivée sur push (voir tache2-tika-serialization.yml).
 on:
-  push:
-    branches: [ main ]
-    paths-ignore:
-      - 'docs/**'
-      - '*.md'
+  workflow_dispatch:
 
 jobs:
   # Gate: publish snapshot images ONLY for -SNAPSHOT versions. The

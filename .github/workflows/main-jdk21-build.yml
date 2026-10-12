@@ -17,11 +17,9 @@
 
 name: main jdk21 build
 
+# Fork tâche 2 : CI Apache complète désactivée sur push (voir tache2-tika-serialization.yml).
 on:
-  push:
-    branches: [ main ]
-    paths-ignore:
-      - 'docs/**'
+  workflow_dispatch:
 
 jobs:
   build:

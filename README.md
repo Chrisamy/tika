@@ -441,7 +441,7 @@ manuel (*Run workflow*) sur **tache2 tika-serialization tests** déclenche la CI
 
 **Exécution réussie à lier ici** (à mettre à jour dès qu’un run est vert) :
 
-- Run **tache2 tika-serialization tests** : *(en attente d’activation Actions — remplacer par l’URL du run vert, ex. `https://github.com/Chrisamy/tika/actions/runs/<id>`)*
+- Run **tache2 tika-serialization tests** : [run réussi du 2026-10-12](https://github.com/Chrisamy/tika/actions/runs/38312448477) (job `test`, ~1 min 16 s)
 - Résumé attendu : job `test` réussi ; uniquement la classe
   `ComponentNameResolverTest` (tests manuels + `@Nested` ChatUniTest).
 
