@@ -31,4 +31,4 @@ jobs:
           java-version: '17'
           cache: 'maven'
       - name: Run tika-serialization tests
-        run: ./mvnw -pl tika-serialization test -B "-Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn"
+        run: ./mvnw -pl tika-serialization -am test -B "-Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn"

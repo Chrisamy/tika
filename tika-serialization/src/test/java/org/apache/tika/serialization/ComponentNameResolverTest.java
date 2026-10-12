@@ -122,7 +122,7 @@ public class ComponentNameResolverTest {
             ComponentRegistry registry = mock(ComponentRegistry.class);
             Map<String, ComponentInfo> components = new HashMap<>();
             for (int i = 1; i <= 51; i++) {
-                components.put("manual-comp-" + String.format("%02d", i),
+                components.put("manual-comp-" + String.format(Locale.ROOT, "%02d", i),
                         new ComponentInfo(Object.class, true));
             }
             when(registry.getAllComponents()).thenReturn(components);
