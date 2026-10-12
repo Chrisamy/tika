@@ -238,9 +238,10 @@ attendu par l'utilisateur.
 
 ### Méthode
 
-Les deux mesures ont été faites dans le même environnement : d'abord avec la
+Les trois mesures ont été faites dans le même environnement : d'abord avec la
 version d'origine de `ComponentNameResolverTest` (commit `ffd712980`), puis
-avec la version contenant les tests générés.
+avec les tests générés ChatUniTest, puis avec les cinq tests manuels
+`manual…` en plus (mesure finale du **2026-10-12**).
 
 ```powershell
 .\mvnw.cmd -pl tika-serialization clean test
@@ -257,24 +258,27 @@ Les résultats ci-dessous sont filtrés sur `ComponentNameResolver`, à partir d
 
 ### Résultats
 
-| Mesure | Tests d'origine | Avec les tests générés |
-| --- | ---: | ---: |
-| Tests du module (tous réussis) | 216 | 293 |
-| Lignes couvertes (JaCoCo) | 91 / 117 (78 %) | 111 / 117 (95 %) |
-| Branches couvertes (JaCoCo) | 34 / 50 (68 %) | 46 / 50 (92 %) |
-| Méthodes couvertes (JaCoCo) | 15 / 19 | 19 / 19 |
-| Mutants tués | 19 / 39 | 31 / 39 |
-| Mutants survivants | 10 | 6 |
-| Mutants sans couverture | 10 | 2 |
-| **Score de mutation** | **49 %** | **79 %** |
+| Mesure | Tests d'origine | Avec les tests générés | + tests manuels |
+| --- | ---: | ---: | ---: |
+| Tests du module (tous réussis) | 216 | 293 | 298 |
+| Lignes couvertes (JaCoCo) | 91 / 117 (78 %) | 111 / 117 (95 %) | 117 / 117 (100 %) |
+| Branches couvertes (JaCoCo) | 34 / 50 (68 %) | 46 / 50 (92 %) | 50 / 50 (100 %) |
+| Méthodes couvertes (JaCoCo) | 15 / 19 | 19 / 19 | 19 / 19 |
+| Mutants tués | 19 / 39 | 31 / 39 | 38 / 39 |
+| Mutants survivants | 10 | 6 | 1 |
+| Mutants sans couverture | 10 | 2 | 0 |
+| **Score de mutation** | **49 %** | **79 %** | **97 %** |
 
 La mesure PIT d'origine est identique à celle de la section initiale (mêmes 39
-mutants, mêmes statuts). Pour JaCoCo, la nouvelle mesure de référence compte
-une ligne et une branche de moins que la mesure initiale (92 et 35); l'écart
-vient d'une exécution différente de la suite du module.
+mutants). Les colonnes « générés » et « manuels » proviennent du pipeline
+`clean test` puis PIT sur tout le module `tika-serialization` (portée du
+`pom.xml`), chiffres filtrés sur `ComponentNameResolver` dans
+`target/pit-reports/mutations.xml` et `target/site/jacoco/jacoco.csv`.
 
-Les tests générés ne détectent pas tous les mutants : 8 mutants sur 39 restent
-non détectés (6 survivants et 2 sans couverture).
+Les tests générés laissent 8 mutants non tués (6 survivants, 2 sans
+couverture). Les tests manuels en tuent **7 de plus** ; il reste **un**
+mutant survivant (limite de condition sur les séparateurs de
+`unregisteredMessage`, voir ci-dessous).
 
 ### Mutants détectés grâce aux tests générés
 
@@ -307,27 +311,102 @@ Les mutants déjà tués par les tests d'origine (par exemple dans `resolveClass
 maintenant souvent à un test généré, parce qu'il retient le premier test qui
 tue le mutant.
 
-### Mutants non détectés
+### Mutants détectés grâce aux tests manuels
+
+Les tests `manual…` tuent **8** mutants que PIT attribue explicitement à ces
+méthodes (7 étaient encore vivants ou sans couverture avec les tests générés
+seuls). Le bloc `catch` de `resolveClass` (lignes 146–148) est couvert par
+`manualResolveClassContinuesAfterTikaConfigExceptionInEarlierRegistry`, mais PIT
+ne génère pas de mutant sur ce `catch` vide.
+
+| Ligne | Méthode | Mutation | Avant (générés) | Test manuel | Pourquoi |
+| ---: | --- | --- | --- | --- | --- |
+| 173 | `unregisteredMessage` | condition inversée | survivant | `manualUnregisteredMessageWhenNoComponentsRegistered` | Registres vidés : le test exige le texte « No components are currently registered »; le mutant prend la branche « liste des composants ». |
+| 181 | `unregisteredMessage` | condition inversée | survivant | `manualUnregisteredMessageListsFiftyNamesThenEllipsisForFiftyOneComponents` | 51 noms : le mutant coupe la liste au premier nom; le test vérifie le suffixe `", ..."` et l'absence du 51e nom. |
+| 185 | `unregisteredMessage` | condition inversée | survivant | `manualUnregisteredMessageListsFiftyNamesThenEllipsisForFiftyOneComponents` | Le mutant supprime les séparateurs `", "`; le test contrôle la chaîne `manual-comp-01, manual-comp-02`. |
+| 189 | `unregisteredMessage` | `shown++` → `shown--` | survivant | `manualUnregisteredMessageListsFiftyNamesThenEllipsisForFiftyOneComponents` | Le mutant fausse le compteur au-delà de la limite 50; le test impose 50 noms visibles puis `", ..."`. |
+| 194 | `unregisteredMessage` | retourne `""` | déjà tué (générés) | `manualUnregisteredMessageWhenNoComponentsRegistered` | PIT crédite aussi le test manuel ; la mutation était déjà couverte avant les `manual…`. |
+| 221 | `hasComponent` | condition inversée | survivant | `manualHasComponentReturnsFalseWhenNoRegistryHasName` | Deux registres mockés sans le nom : le mutant renvoie `true` trop tôt; `assertFalse` échoue. |
+| 225 | `hasComponent` | retourne `true` | sans couverture | `manualHasComponentReturnsFalseWhenNoRegistryHasName` | Même scénario : seul un oracle `false` tue ce mutant. |
+| 264 | `hasImplementationsOf` | retourne `true` | sans couverture | `manualHasImplementationsOfReturnsFalseWhenNoMatchingType` | Registre avec `String` seulement, requête `Parser.class` : le test attend `false`. |
+
+### Mutants non détectés (après tests manuels)
 
 | Ligne | Méthode | Mutation | Statut | Raison |
 | ---: | --- | --- | --- | --- |
-| 173 | `unregisteredMessage` | condition `known.isEmpty()` inversée | survivant | Le test écrit à la main vérifie seulement les parties communes du message; ni le texte « No components are currently registered » ni la liste des composants enregistrés ne sont vérifiés. La branche « aucun composant » (ligne 174) n'est jamais exécutée : dans la suite du module, au moins un registre est toujours chargé. |
-| 181 | `unregisteredMessage` | condition `shown == cap` inversée | survivant | Le mutant tronque la liste dès le premier nom; aucun test ne vérifie la liste des noms. |
-| 185 | `unregisteredMessage` | limite et condition de `shown > 0` | survivant (2) | Ces mutants ne changent que les séparateurs `", "`; aucun test ne vérifie le format de la liste. |
-| 189 | `unregisteredMessage` | `shown++` remplacé par `shown--` | survivant | Le mutant ne change le résultat qu'au-delà de 50 composants (limite de la liste); aucun test n'enregistre plus de 50 noms ni ne vérifie le suffixe `", ..."` (lignes 182 et 183 non couvertes). |
-| 221 | `hasComponent` | condition inversée | survivant | Les tests générés conservés attendent tous `true`. Le mutant renvoie `true` dès qu'un registre ne contient pas le composant, ce qui donne aussi `true`. Seul un test attendant `false` le tuerait; les tests générés pour ce cas étaient faux ou dépendaient de l'ordre et ont été retirés. |
-| 225 | `hasComponent` | retourne `true` au lieu de `false` | sans couverture | Aucun test n'atteint le cas « composant introuvable ». |
-| 264 | `hasImplementationsOf` | retourne `true` au lieu de `false` | sans couverture | Aucun test n'atteint le cas « aucune implémentation »; le test généré correspondant supposait un registre vide et a été retiré. |
+| 185 | `unregisteredMessage` | *changed conditional boundary* (`shown > 0`) | survivant | PIT remplace `>` par `>=`. Avec plusieurs noms, le message reste souvent identique au mutant sur la troncature à 50 entrées ; aucun oracle ne distingue ce cas du comportement nominal. Un test ciblant un seul nom enregistré et l'absence de virgule en tête pourrait le tuer ; à documenter comme quasi équivalent si on ne l'ajoute pas. |
 
-JaCoCo signale les mêmes zones soit les lignes 174, 182, 183, 225 et 264 ne sont
-pas exécutées, ainsi que le bloc `catch` de `resolveClass` (ligne 146) qui
-traite le cas où un registre connaît un nom mais ne peut pas charger sa classe.
-Ces mutants et ces lignes sont la cible des tests manuels de la section
-suivante.
+Avec les tests manuels, JaCoCo indique **100 %** des lignes et branches de
+`ComponentNameResolver`, y compris la branche `catch` de `resolveClass`.
 
 
 ## Tests manuels supplémentaires
 
+Les tests ci-dessous sont des méthodes `@Test` dans `ComponentNameResolverTest`
+(écrites à la main, placées avant les classes `@Nested` générées par ChatUniTest).
+Quand il faut contrôler la liste des composants connus, le test sauvegarde le
+champ statique `REGISTRIES` par réflexion, vide la carte, puis la restaure dans
+un bloc `finally`.
+
+### `manualHasComponentReturnsFalseWhenNoRegistryHasName`
+
+- **Nom du test** : `manualHasComponentReturnsFalseWhenNoRegistryHasName`
+- **Intention** : lorsque aucun registre ne déclare le nom demandé, `hasComponent`
+  doit renvoyer `false` (et non `true` par défaut ou par condition inversée).
+- **Motivation des données de test** : deux registres mockés distincts et un nom
+  de composant unique (`manual-missing-component-xyz`) ; les deux mocks répondent
+  `false` à `hasComponent`, ce qui force l’exécution de la branche finale de
+  la méthode.
+- **Oracle** : `assertFalse(hasComponent(nom))` ; le comportement attendu est la
+  définition de `hasComponent` (parcours des registres, retour `false` si aucun
+  ne contient le nom).
+
+### `manualHasImplementationsOfReturnsFalseWhenNoMatchingType`
+
+- **Nom du test** : `manualHasImplementationsOfReturnsFalseWhenNoMatchingType`
+- **Intention** : `hasImplementationsOf` renvoie `false` lorsqu’aucun composant
+  enregistré n’est assignable au type abstrait demandé.
+- **Motivation des données de test** : un seul registre mocké dont la carte ne
+  contient qu’un composant `String.class` ; on interroge `Parser.class`, type
+  sans implémentation enregistrée dans ce registre isolé.
+- **Oracle** : `assertFalse(hasImplementationsOf(Parser.class))` ; aligné sur la
+  boucle de `hasImplementationsOf` qui ne trouve aucun `ComponentInfo` assignable.
+
+### `manualResolveClassContinuesAfterTikaConfigExceptionInEarlierRegistry`
+
+- **Nom du test** : `manualResolveClassContinuesAfterTikaConfigExceptionInEarlierRegistry`
+- **Intention** : si un registre connaît le nom mais `getComponentClass` lève
+  `TikaConfigException`, la résolution doit continuer avec les autres registres.
+- **Motivation des données de test** : registre « échec » avec `hasComponent → true`
+  et `getComponentClass` qui lève ; registre « succès » avec la même clé et
+  `Detector.class` ; nom unique `manual-resolve-fallback`.
+- **Oracle** : `assertEquals(Detector.class, resolveClass(nom, classLoader))` ; la
+  spécification du `catch` dans `resolveClass` (ignorer l’exception et poursuivre).
+
+### `manualUnregisteredMessageListsFiftyNamesThenEllipsisForFiftyOneComponents`
+
+- **Nom du test** : `manualUnregisteredMessageListsFiftyNamesThenEllipsisForFiftyOneComponents`
+- **Intention** : le message d’erreur pour un nom inconnu liste les composants
+  connus (séparateurs `", "`, au plus 50 noms affichés, puis `", ..."`).
+- **Motivation des données de test** : **51** noms contrôlés `manual-comp-01` …
+  `manual-comp-51` dans `getAllComponents().keySet()` d’un registre mocké isolé ;
+  résolution d’un nom absent (`manual-unknown-for-list`).
+- **Oracle** : le message contient `51 registered component(s):`, une sous-chaîne
+  avec les premiers noms triés (`manual-comp-01, manual-comp-02`), le
+  cinquantième nom, le suffixe `", ..."`, et **pas** `manual-comp-51` (51e entrée
+  omise par la limite).
+
+### `manualUnregisteredMessageWhenNoComponentsRegistered`
+
+- **Nom du test** : `manualUnregisteredMessageWhenNoComponentsRegistered`
+- **Intention** : sans aucun composant enregistré, le message signale explicitement
+  l’absence de fichiers `.idx` sur le classpath.
+- **Motivation des données de test** : `REGISTRIES` vidé dans `@BeforeEach` de
+  `ManualTests` (stratégie **A** : réflexion + sauvegarde/restauration), puis
+  appel à `resolveClass` sur un nom inconnu.
+- **Oracle** : le message contient `No components are currently registered` et la
+  mention `META-INF/tika/*.idx`, comme dans le code de `unregisteredMessage` lorsque
+  `known.isEmpty()`.
 
 ## Exécution dans l’intégration continue
 

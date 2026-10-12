@@ -21,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
+import java.lang.reflect.Field;
 import java.util.*;
 
 import org.junit.jupiter.api.*;
@@ -64,6 +65,119 @@ public class ComponentNameResolverTest {
         // names the opt-in-module cause concretely so users know what to add
         assertTrue(msg.contains("tika-parser-tess4j-module"), msg);
         assertTrue(msg.contains("Arbitrary class names are not allowed"), msg);
+    }
+
+    @Test
+    public void manualHasComponentReturnsFalseWhenNoRegistryHasName() {
+        String name = "manual-missing-component-xyz";
+        ComponentRegistry a = mock(ComponentRegistry.class);
+        ComponentRegistry b = mock(ComponentRegistry.class);
+        when(a.hasComponent(name)).thenReturn(false);
+        when(b.hasComponent(name)).thenReturn(false);
+        ComponentNameResolver.registerRegistry("manual-a", a);
+        ComponentNameResolver.registerRegistry("manual-b", b);
+
+        assertFalse(ComponentNameResolver.hasComponent(name));
+    }
+
+    @Test
+    public void manualHasImplementationsOfReturnsFalseWhenNoMatchingType() throws Exception {
+        Map<String, ComponentRegistry> saved = backupRegistries();
+        clearRegistries();
+        try {
+            ComponentRegistry registry = mock(ComponentRegistry.class);
+            when(registry.getAllComponents()).thenReturn(
+                    Map.of("only-string", new ComponentInfo(String.class, true)));
+            ComponentNameResolver.registerRegistry("manual-impl", registry);
+
+            assertFalse(ComponentNameResolver.hasImplementationsOf(Parser.class));
+        } finally {
+            restoreRegistries(saved);
+        }
+    }
+
+    @Test
+    public void manualResolveClassContinuesAfterTikaConfigExceptionInEarlierRegistry()
+            throws Exception {
+        String name = "manual-resolve-fallback";
+        ComponentRegistry bad = mock(ComponentRegistry.class);
+        ComponentRegistry good = mock(ComponentRegistry.class);
+        when(bad.hasComponent(name)).thenReturn(true);
+        when(bad.getComponentClass(name)).thenThrow(new TikaConfigException("fail"));
+        when(good.hasComponent(name)).thenReturn(true);
+        doReturn(Detector.class).when(good).getComponentClass(name);
+        ComponentNameResolver.registerRegistry("manual-bad", bad);
+        ComponentNameResolver.registerRegistry("manual-good", good);
+
+        assertEquals(Detector.class,
+                ComponentNameResolver.resolveClass(name, getClass().getClassLoader()));
+    }
+
+    @Test
+    public void manualUnregisteredMessageListsFiftyNamesThenEllipsisForFiftyOneComponents()
+            throws Exception {
+        Map<String, ComponentRegistry> saved = backupRegistries();
+        clearRegistries();
+        try {
+            ComponentRegistry registry = mock(ComponentRegistry.class);
+            Map<String, ComponentInfo> components = new HashMap<>();
+            for (int i = 1; i <= 51; i++) {
+                components.put("manual-comp-" + String.format("%02d", i),
+                        new ComponentInfo(Object.class, true));
+            }
+            when(registry.getAllComponents()).thenReturn(components);
+            when(registry.hasComponent(anyString())).thenReturn(false);
+            ComponentNameResolver.registerRegistry("manual-51", registry);
+
+            ClassNotFoundException e = assertThrows(ClassNotFoundException.class, () ->
+                    ComponentNameResolver.resolveClass(
+                            "manual-unknown-for-list", getClass().getClassLoader()));
+            String msg = e.getMessage();
+            assertTrue(msg.contains("51 registered component(s):"), msg);
+            assertTrue(msg.contains("manual-comp-01, manual-comp-02"), msg);
+            assertTrue(msg.contains("manual-comp-50"), msg);
+            assertTrue(msg.contains(", ..."), msg);
+            assertFalse(msg.contains("manual-comp-51"), msg);
+        } finally {
+            restoreRegistries(saved);
+        }
+    }
+
+    @Test
+    public void manualUnregisteredMessageWhenNoComponentsRegistered() throws Exception {
+        Map<String, ComponentRegistry> saved = backupRegistries();
+        clearRegistries();
+        try {
+            ClassNotFoundException e = assertThrows(ClassNotFoundException.class, () ->
+                    ComponentNameResolver.resolveClass(
+                            "manual-unknown-empty", getClass().getClassLoader()));
+            String msg = e.getMessage();
+            assertTrue(msg.contains("No components are currently registered"), msg);
+            assertTrue(msg.contains("META-INF/tika/*.idx"), msg);
+        } finally {
+            restoreRegistries(saved);
+        }
+    }
+
+    private Map<String, ComponentRegistry> backupRegistries() throws Exception {
+        Field field = ComponentNameResolver.class.getDeclaredField("REGISTRIES");
+        field.setAccessible(true);
+        return new HashMap<>((Map<String, ComponentRegistry>) field.get(null));
+    }
+
+    private void clearRegistries() throws Exception {
+        Field field = ComponentNameResolver.class.getDeclaredField("REGISTRIES");
+        field.setAccessible(true);
+        ((Map<?, ?>) field.get(null)).clear();
+    }
+
+    private void restoreRegistries(Map<String, ComponentRegistry> saved) throws Exception {
+        Field field = ComponentNameResolver.class.getDeclaredField("REGISTRIES");
+        field.setAccessible(true);
+        Map<String, ComponentRegistry> registries =
+                (Map<String, ComponentRegistry>) field.get(null);
+        registries.clear();
+        registries.putAll(saved);
     }
 
     @Nested
