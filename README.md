@@ -107,10 +107,17 @@ avec 8 Go de VRAM.
 #### Résultat final
 
 ChatUniTest a généré 77 cas de test, couvrant 16 des 17 méthodes publiques de
-`ComponentNameResolver`. Les tests retenus ont ensuite été regroupés dans
-`ComponentNameResolverTest.java`; leur logique vient de la génération. Les
-seuls retraits ont porté sur des méthodes de test complètes qui échouaient ou
-dépendaient de l'ordre d'exécution, et Spotless a fait le reformatage.
+`ComponentNameResolver`. Ils sont regroupés dans
+`ComponentNameResolverTest.java`, à la suite du test écrit à la main : chaque
+classe générée y est recopiée telle quelle sous forme de classe interne JUnit 5
+`@Nested` (même nom, mêmes champs, même méthode `setUp`, mêmes tests). Les
+seules modifications sont structurelles, les imports sont remontés en tête du
+fichier et `public class X` est devenu `@Nested class X`. Une fusion
+aurait obligé à renommer des champs (`mockRegistry1`, `mockRegistry2`) et des
+méthodes `setUp` présents dans plusieurs classes, donc à modifier le code
+généré. Les seuls retraits ont porté sur des méthodes de test complètes qui
+échouaient ou dépendaient de l'ordre d'exécution, et Spotless a fait le
+reformatage.
 
 La commande `.\mvnw.cmd -pl tika-serialization test` a terminé avec succès :
 293 tests, 0 échec, 0 erreur et 2 tests ignorés. Les deux tests ignorés sont
@@ -176,8 +183,9 @@ j'ai épinglé `byte-buddy` et `byte-buddy-agent` à la version 1.17.7. Le
 starter amenait aussi JUnit 4, ce qui faisait choisir à Surefire le mauvais
 fournisseur : j'ai exclu `junit-vintage-engine`, `junit-platform-runner` et
 `junit:junit`. Checkstyle rejetait les imports générés (imports génériques et
-inutilisés); les classes ChatUniTest sont exclues de Checkstyle, mais restent
-formatées par Spotless. Enfin, l'objectif de copie du plugin remplace tout
+inutilisés); `ComponentNameResolverTest.java`, qui contient les classes
+générées avec leurs imports d'origine, est donc exclu de Checkstyle, mais reste
+formaté par Spotless. Enfin, l'objectif de copie du plugin remplace tout
 `src/test`; j'ai copié uniquement les fichiers de tests voulus.
 
 **Prompts.** Les prompts par défaut encourageaient la réflexion et Mockito 3.
@@ -196,10 +204,126 @@ Les changements de configuration sont dans `tika-serialization/pom.xml` et
 les prompts personnalisés, le script `gen_api_ref.py` et
 `api/ComponentNameResolver.txt` sont dans
 `tika-serialization/chatunitest-prompts/`. Les tests sont dans
-`tika-serialization/src/test/java/org/apache/tika/serialization/`. Hors du
+`tika-serialization/src/test/java/org/apache/tika/serialization/ComponentNameResolverTest.java`. Hors du
 dépôt, l'alias Ollama et les variables d'environnement
 `OLLAMA_FLASH_ATTENTION` et `OLLAMA_KV_CACHE_TYPE` restent propres à la
 machine utilisée.
+
+### Oracles générés et oracle écrit à la main
+
+Le test écrit à la main, `unregisteredComponentGivesActionableMessage`,
+vérifie un comportement visible par l'utilisateur : quand un composant est
+inconnu, le message de l'exception doit contenir le nom demandé, les deux
+causes probables (faute de frappe ou module absent du classpath), l'exemple du
+module `tika-parser-tess4j-module` et la règle de sécurité. Son oracle vient
+d'une exigence (TIKA-4750), pas du code soit un seul test, mais une intention
+claire.
+
+Les oracles générés sont surtout des comparaisons de valeurs de retour :
+
+| Catégorie | Méthodes | Appréciation |
+| --- | --- | --- |
+| Énumération des listes statiques | `isWireInstantiable`, `isWireBlocked`, `findContextKeyInterface`, `usesCompactFormat` et les trois accesseurs | Un test par interface, avec la valeur attendue recopiée du bloc `static { ... }`. Oracles spécifiques et efficaces contre les mutants booléens, mais très redondants (12 ou 13 tests par méthode au lieu d'un test paramétré) et calqués sur l'implémentation : ils détectent un changement de la liste, pas une erreur de logique. Aucun ne vérifie la propriété de sécurité attendue (la liste autorisée et la liste bloquée couvrent ensemble toutes les interfaces, sans recouvrement). |
+| Scénarios avec registres simulés | `resolveClass`, `getComponentInfo`, `getContextKey`, `hasComponent`, `hasImplementationsOf` | Scénarios pertinents (premier ou deuxième registre, composant absent, exception avalée), avec des mocks Mockito. Plusieurs faiblesses toutefois : les tests de `getContextKey` utilisent la même classe comme composant et comme clé de contexte (`new ComponentInfo(testClass, true, testClass)`), si bien qu'une erreur qui renverrait la classe du composant au lieu de la clé passerait inaperçue; `hasComponent` et `hasImplementationsOf` ne vérifient que le cas positif, les cas négatifs générés étant faux ou dépendants de l'ordre; `hasImplementationsOf(Object.class)` est vrai pour n'importe quel composant, ce qui en fait une vérification triviale. |
+| Choix de clé | `determineContextKey` | Le meilleur exemple : des valeurs distinctes (`Object` comme composant, `Parser` comme clé) et les trois branches de la méthode couvertes. |
+| Vérifications hors sujet | `registerRegistry`, `registerComponentConfig`, `getFriendlyName` | Les tests conservés vérifient qu'un argument `null` lève une `NullPointerException`, ce qui teste surtout `ConcurrentHashMap` et non l'enregistrement; pour `getFriendlyName`, seul le cas « aucun nom trouvé » reste. |
+
+Aucun test généré ne vérifie le contenu du message d'erreur produit par
+`unregisteredMessage`. En résumé, l'IA produit beaucoup de tests proches de
+l'implémentation, qui couvrent largement la classe, mais vérifient peu
+l'intention; le test écrit à la main est unique, mais vérifie un comportement
+attendu par l'utilisateur.
+
+## Analyse de mutation avec les tests générés
+
+### Méthode
+
+Les deux mesures ont été faites dans le même environnement : d'abord avec la
+version d'origine de `ComponentNameResolverTest` (commit `ffd712980`), puis
+avec la version contenant les tests générés.
+
+```powershell
+.\mvnw.cmd -pl tika-serialization clean test
+.\mvnw.cmd -pl tika-serialization org.pitest:pitest-maven:1.30.0:mutationCoverage "-DoutputFormats=XML,HTML" "-DtimestampedReports=false"
+```
+
+La portée de PIT est celle de `tika-serialization/pom.xml`
+(`org.apache.tika.serialization.*` et `org.apache.tika.config.loader.*`, tous
+les tests du module). Les valeurs `-DtargetClasses` passées en ligne de
+commande ne remplacent pas celles du POM : la commande de la section
+« Couverture et mutants avec les tests existants » mesure donc la même portée.
+Les résultats ci-dessous sont filtrés sur `ComponentNameResolver`, à partir de
+`target/site/jacoco/jacoco.csv` et de `target/pit-reports/mutations.xml`.
+
+### Résultats
+
+| Mesure | Tests d'origine | Avec les tests générés |
+| --- | ---: | ---: |
+| Tests du module (tous réussis) | 216 | 293 |
+| Lignes couvertes (JaCoCo) | 91 / 117 (78 %) | 111 / 117 (95 %) |
+| Branches couvertes (JaCoCo) | 34 / 50 (68 %) | 46 / 50 (92 %) |
+| Méthodes couvertes (JaCoCo) | 15 / 19 | 19 / 19 |
+| Mutants tués | 19 / 39 | 31 / 39 |
+| Mutants survivants | 10 | 6 |
+| Mutants sans couverture | 10 | 2 |
+| **Score de mutation** | **49 %** | **79 %** |
+
+La mesure PIT d'origine est identique à celle de la section initiale (mêmes 39
+mutants, mêmes statuts). Pour JaCoCo, la nouvelle mesure de référence compte
+une ligne et une branche de moins que la mesure initiale (92 et 35); l'écart
+vient d'une exécution différente de la suite du module.
+
+Les tests générés ne détectent pas tous les mutants : 8 mutants sur 39 restent
+non détectés (6 survivants et 2 sans couverture).
+
+### Mutants détectés grâce aux tests générés
+
+Les tests générés tuent 12 mutants qui survivaient ou n'étaient pas couverts
+avec les tests d'origine. Ces derniers n'atteignaient ces méthodes
+qu'indirectement (chargement de configuration par `TikaLoader`, sérialisation
+de `ParseContext`), sans vérifier leur valeur de retour, ou pas du tout. Les
+tests générés appellent chaque méthode directement et comparent le résultat
+exact : toute mutation qui change la valeur renvoyée est détectée.
+
+| Ligne | Méthode | Mutation | Avant | Test qui le tue | Pourquoi |
+| ---: | --- | --- | --- | --- | --- |
+| 210 | `getFriendlyName` | retourne `""` au lieu de `null` | survivant | `getFriendlyName_3_0.testGetFriendlyName_NoFriendlyNameInAnyRegistry` | Aucun registre ne connaît la classe; le test attend `null`, le mutant renvoie `""`. |
+| 222 | `hasComponent` | retourne `false` | sans couverture | `hasComponent_4_0.testHasComponent_WhenComponentExists_ReturnsTrue` | Le registre simulé contient le composant; `assertTrue` échoue si la méthode renvoie `false`. |
+| 259 | `hasImplementationsOf` | condition inversée | sans couverture | `hasImplementationsOf_6_0.testHasImplementationsOf_withAbstractType` | Avec `Object.class`, tous les composants sont compatibles; la condition inversée n'est jamais vraie, la méthode renvoie `false` au lieu de `true`. |
+| 260 | `hasImplementationsOf` | retourne `false` | sans couverture | `hasImplementationsOf_6_0.testHasImplementationsOf_withMatchingComponent` | Un composant `Parser` est enregistré; le test attend `true`. |
+| 307 | `isWireInstantiable` | retourne `false` | sans couverture | `isWireInstantiable_11_0.testIsWireInstantiable_WithContentHandlerFactory` | `ContentHandlerFactory` est dans la liste autorisée; le test attend `true`. |
+| 307 | `isWireInstantiable` | retourne `true` | sans couverture | `isWireInstantiable_11_0.testIsWireInstantiable_WithTranslator` | `Translator` est bloqué; le test attend `false`. |
+| 336 | `findContextKeyInterface` | retourne `null` | survivant | `findContextKeyInterface_14_0.testFindContextKeyInterface_withContentHandlerFactory` | Le test attend l'interface correspondante, pas `null`. |
+| 350 | `usesCompactFormat` | retourne `true` | survivant | `usesCompactFormat_15_0.testUsesCompactFormat_WithNonContextKeyInterface` | Un type ordinaire doit donner `false`. |
+| 350 | `usesCompactFormat` | condition inversée | survivant | `usesCompactFormat_15_0.testUsesCompactFormat_WithTranslator` | `Translator` est une clé de contexte; le test attend `true`. |
+| 372 | `determineContextKey` | retourne `null` | survivant | `determineContextKey_16_0.testDetermineContextKey_withInterfaceKeyFound` | Sans clé explicite, `Detector` doit être retenu comme interface; le test compare la clé exacte. |
+| 387 | `getContextKey` | condition inversée | sans couverture | `getContextKey_17_0.testGetContextKey_FriendlyNameFoundInSecondRegistry` | Le premier registre ne connaît pas la classe : la condition inversée lit un nom `null` et ne renvoie pas la clé du second registre. |
+| 390 | `getContextKey` | retourne `null` | sans couverture | `getContextKey_17_0.testGetContextKey_FriendlyNameFoundInSecondRegistry` | Le test attend la clé `Detector`, pas `null`. |
+
+Les noms de tests sont abrégés : `getFriendlyName_3_0` désigne la classe
+imbriquée `ComponentNameResolverTest.ComponentNameResolver_getFriendlyName_3_0_Test`.
+Les mutants déjà tués par les tests d'origine (par exemple dans `resolveClass`,
+`isWireBlocked` ou `determineContextKey`) le sont toujours; PIT les attribue
+maintenant souvent à un test généré, parce qu'il retient le premier test qui
+tue le mutant.
+
+### Mutants non détectés
+
+| Ligne | Méthode | Mutation | Statut | Raison |
+| ---: | --- | --- | --- | --- |
+| 173 | `unregisteredMessage` | condition `known.isEmpty()` inversée | survivant | Le test écrit à la main vérifie seulement les parties communes du message; ni le texte « No components are currently registered » ni la liste des composants enregistrés ne sont vérifiés. La branche « aucun composant » (ligne 174) n'est jamais exécutée : dans la suite du module, au moins un registre est toujours chargé. |
+| 181 | `unregisteredMessage` | condition `shown == cap` inversée | survivant | Le mutant tronque la liste dès le premier nom; aucun test ne vérifie la liste des noms. |
+| 185 | `unregisteredMessage` | limite et condition de `shown > 0` | survivant (2) | Ces mutants ne changent que les séparateurs `", "`; aucun test ne vérifie le format de la liste. |
+| 189 | `unregisteredMessage` | `shown++` remplacé par `shown--` | survivant | Le mutant ne change le résultat qu'au-delà de 50 composants (limite de la liste); aucun test n'enregistre plus de 50 noms ni ne vérifie le suffixe `", ..."` (lignes 182 et 183 non couvertes). |
+| 221 | `hasComponent` | condition inversée | survivant | Les tests générés conservés attendent tous `true`. Le mutant renvoie `true` dès qu'un registre ne contient pas le composant, ce qui donne aussi `true`. Seul un test attendant `false` le tuerait; les tests générés pour ce cas étaient faux ou dépendaient de l'ordre et ont été retirés. |
+| 225 | `hasComponent` | retourne `true` au lieu de `false` | sans couverture | Aucun test n'atteint le cas « composant introuvable ». |
+| 264 | `hasImplementationsOf` | retourne `true` au lieu de `false` | sans couverture | Aucun test n'atteint le cas « aucune implémentation »; le test généré correspondant supposait un registre vide et a été retiré. |
+
+JaCoCo signale les mêmes zones soit les lignes 174, 182, 183, 225 et 264 ne sont
+pas exécutées, ainsi que le bloc `catch` de `resolveClass` (ligne 146) qui
+traite le cas où un registre connaît un nom mais ne peut pas charger sa classe.
+Ces mutants et ces lignes sont la cible des tests manuels de la section
+suivante.
 
 
 ## Tests manuels supplémentaires
