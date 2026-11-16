@@ -7,7 +7,7 @@ name: tache2 tika-serialization tests
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, tache3 ]
     paths:
       - 'tika-serialization/**'
       - '.github/workflows/tache2-tika-serialization.yml'
@@ -15,7 +15,7 @@ on:
       - '.github/workflows/docker-*.yml'
       - '.github/workflows/split-packages.yml'
   pull_request:
-    branches: [ main ]
+    branches: [ main, tache3 ]
     paths:
       - 'tika-serialization/**'
       - '.github/workflows/tache2-tika-serialization.yml'
@@ -37,3 +37,32 @@ jobs:
         run: ./mvnw -pl tika-serialization -am install -DskipTests -B "-Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn"
       - name: Run tâche 2 tests only (ComponentNameResolverTest)
         run: ./mvnw -pl tika-serialization test -Dtest=ComponentNameResolverTest -B "-Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn"
+  semgrep:
+    name: Semgrep
+    runs-on: ubuntu-latest
+    container: semgrep/semgrep:1.184.0
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Fail new semgrep
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            BASE="$PR_BASE"
+          else
+            BASE="$PUSH_BEFORE"
+          fi
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            BASE=$(git rev-parse HEAD~1)
+          fi
+          echo "Baseline commit: $BASE"
+          semgrep scan --config p/java --metrics=off --baseline-commit "$BASE" --error tika-serialization
+
