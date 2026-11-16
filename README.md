@@ -24,7 +24,7 @@ MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/src" -w /src semgrep/semgrep:1
   semgrep scan --config p/java --metrics=off -o tache3/reports/semgrep-before.txt tika-serialization
 ```
 
-(Avec MSYS_NO_PATHCONV=1 pour éviter les problèmes de chemin sur Windows.)
+`MSYS_NO_PATHCONV=1` évite que Git Bash réécrive les chemins de fichiers Windows en chemins Unix, ce qui rendrait le rapport JSON invalide.
 
 - le rapport JSON: `tache3/reports/semgrep-before.json`
 - le rapport texte: `tache3/reports/semgrep-before.txt`
@@ -36,13 +36,13 @@ Semprep a exécuté les 60 règles de sécurité de la version 1.184.0 du rulese
 
 ### Quel workflow a été modifié
 
-Notre fork contient les workflow dùpstream de Tika, qui exécute le build Maven entier du projet, ainsi que le workflow que nous avons écrit pour la tâche 2, `tache2-tika-serialization.yml`,
+Notre fork contient les workflow d'upstream de Tika, qui exécute le build Maven entier du projet, ainsi que le workflow que nous avons écrit pour la tâche 2, `tache2-tika-serialization.yml`,
 qui build les dépendances de `tika-serialization` et exécute `ComponentNameResolverTest`.
 
 Nous avons modifié `tache2-tika-serialization.yml`:
 
 - Nous l'avons déjà utilisé pour le CI dans la tâche 2, donc il couvre un module sur lequel nous travaillons.
-- Le run prneds environ 1 minute, plutôt que 5 minutes pour le build Maven entier.
+- Le run prends environ 1 minute, plutôt que 5 minutes pour le build Maven entier.
 
 ### Changements
 
@@ -51,13 +51,13 @@ Nous avons modifié `tache2-tika-serialization.yml`:
 
 ```yaml
 semgrep:
-    name: Semgrep (new findings only)
+    name: Semgrep
     runs-on: ubuntu-latest
     container: semgrep/semgrep:1.184.0
     permissions:
         contents: read
     steps:
-        - uses: actions/checkout@v4
+        - uses: actions/checkout@v6
           with:
               fetch-depth: 0
         - name: Fail on new Semgrep findings
@@ -94,7 +94,7 @@ semgrep:
 
 ### Validation
 
-Chaque scénario a été validé avec des commits et push individuels:
+Chaque scénario a été validé avec des commits et push individuels :
 
 | Scénario                                                  | Résultat attendu                                                                        | Lien du run                                                                | Résultat observé                                      |
 | --------------------------------------------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------- |
@@ -105,8 +105,8 @@ Chaque scénario a été validé avec des commits et push individuels:
 
 ## Vulnérabilités introduites
 
-Nous avons introduit sept vulnérabilités de types différents dans `tika-serialization/src/main/java`, chaqune détecté par une règle différente du ruleset `p/java`.
-Chaque vulnérabilité a son propre commit et CWE. Chaque vulnérabilité est une nouvelle méthode ajouté a une classe existante, aucune n'est appelée donc le module ne change pas de comportement.
+Nous avons introduit 7 vulnérabilités de types différents dans `tika-serialization/src/main/java`, chacun détecté par une règle différente du ruleset `p/java`.
+Chaque vulnérabilité a son propre commit et CWE. Chaque vulnérabilité est une nouvelle méthode ajoutée à une classe existante, aucune n'est appelée donc le module ne change pas de comportement.
 Après les changements, le module build et passe tous les tests.
 
 | Type                                       | CWE | Règle de Semgrep                                        | Fichier                                            | Ligne   | Commit                                   |
@@ -128,10 +128,10 @@ mapper.enableDefaultTyping();
 return mapper.readValue(json, Object.class);
 ```
 
-**- Choix du fichier:** Ce fichier crée tout les ObjectMapper utilisés pour lire la configuration JSON de Tika., qui est polymorphique.
-**- Vulnérabilité:** Jackson instancie le nom de classe dans le JSON, et le le type cible `Object`permet n'importe quel type de classe. Si un attquant contrôle le JSON, il peut déclencher
-des classes « gadgets »
-**- Semgrep:** `jackson-unsafe-deserialization` at line 99.
+**- Choix du fichier :** Ce fichier crée tout les `ObjectMapper` utilisés pour lire la configuration JSON de Tika, qui est polymorphique.
+**- Vulnérabilité :** Jackson instancie le nom de classe dans le JSON, et le type cible `Object` permet n'importe quel type de classe. Si un attaquant contrôle le JSON, il peut faire instancier
+des classes « gadgets » et aller jusqu'à exécuter du code arbitraire. Le code de Tika ne fait pas de validation de type, donc la vulnérabilité est exploitable.
+**- Semgrep :** `jackson-unsafe-deserialization`, ligne 99.
 
 ### XML external entities
 
@@ -141,9 +141,9 @@ des classes « gadgets »
 dbf.setFeature("http://xml.org/sax/features/external-general-entities", true);
 ```
 
-**- Choix du fichier:** Ce fichier reçoit les chemins de configuration. Tika n'utilise cependant plus de configuration XML mais des configurations JSON.
-**- Vulnérabilité:** Le parseur résout les entités externes, donc un fichier XML peut lui faire lire des fichuier locaux ou contacter des URL internes.
-**- Semgrep:** `documentbuilderfactory-external-general-entities-true` at line 213 (severity ERROR).
+**- Choix du fichier :** Ce fichier reçoit les chemins de configuration. Tika n'utilise cependant plus de configuration XML, mais des configurations JSON.
+**- Vulnérabilité :** Le parseur résout les entités externes, donc un fichier XML peut lui faire lire des fichiers locaux ou contacter des URL internes.    
+**- Semgrep :** `documentbuilderfactory-external-general-entities-true` at line 213 (severity ERROR).
 
 ### Utilisation d'un hash faible
 
@@ -165,9 +165,9 @@ java.security.MessageDigest.getInstance("MD5").digest(in.readAllBytes());
 cipher = javax.crypto.Cipher.getInstance("AES/ECB/PKCS5Padding");
 ```
 
-**- Choix du fichier:** Ce fichier remplace les valeurs des paramètres fictifs des modèles de configuration, il est donc logique de déchiffrer des valeurs ici.
-**- Vulnérabilé:** ECB chiffre chaque bloc indépendamment et de façon déterministe, des blocs de texte clair identiques donnent des blocs chiffrés identiques.
-**- Semgrep:** `use-of-aes-ecb` at line 302.
+**- Choix du fichier :** Ce fichier remplace les valeurs des paramètres fictifs des modèles de configuration, il est donc logique de déchiffrer des valeurs ici.
+**- Vulnérabilé :** ECB chiffre chaque bloc indépendamment et de façon déterministe, des blocs de texte clair identiques donnent des blocs chiffrés identiques.
+**- Semgrep :** `use-of-aes-ecb` at line 302.
 
 ### Vecteur d'initialisation statique avec CBC
 
@@ -177,9 +177,9 @@ cipher = javax.crypto.Cipher.getInstance("AES/ECB/PKCS5Padding");
 byte[] iv = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
 ```
 
-**- Choix du fichier:** Ce fichier écrit un ParseContext en JSON, qui peut transporter des secrets comme le mot de passe d'un PDF chiffré. On peut donc chiffrer avant la sérialisation.
-**- Vulnérabilé:** Le vecteur d'initialisation est un constant, CBC devient alors déterministe, le m^me mot de passe donne toujours le même texte chiffré, ce qui peut être exploité.
-**- Semgrep:** `no-static-initialization-vector` at lines 111–114.
+**- Choix du fichier :** Ce fichier écrit un ParseContext en JSON, qui peut transporter des secrets comme le mot de passe d'un PDF chiffré. On peut donc chiffrer avant la sérialisation.
+**- Vulnérabilé :** Le vecteur d'initialisation est un constant, CBC devient alors déterministe, le m^me mot de passe donne toujours le même texte chiffré, ce qui peut être exploité.
+**- Semgrep :** `no-static-initialization-vector` at lines 111–114.
 
 ### Utilisation d'une version de TLS faible
 
@@ -189,9 +189,9 @@ byte[] iv = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
 SSLContext sslContext = SSLContext.getInstance("TLSv1");
 ```
 
-**- Choix du fichier:** Ce fichier contient déjà `load(Path)` et `load(InputStream)` donc il est logique d'y rajouter un `load(URL)`.
-**- Vulnérabilé:** TLSv1 est obsolète et a des faiblesses bien documentées. Un attaquant intermédiaire pourrait compromiser l'intégrité, l'authenticité et la confidentialité des données.
-**- Semgrep:** `weak-ssl-context` at line 170.
+**- Choix du fichier :** Ce fichier contient déjà `load(Path)` et `load(InputStream)` donc il est logique d'y rajouter un `load(URL)`.
+**- Vulnérabilé :** TLSv1 est obsolète et a des faiblesses bien documentées. Un attaquant intermédiaire pourrait compromiser l'intégrité, l'authenticité et la confidentialité des données.
+**- Semgrep :** `weak-ssl-context` at line 170.
 
 ### Transmission en texte clair
 
@@ -201,22 +201,22 @@ SSLContext sslContext = SSLContext.getInstance("TLSv1");
 try (Socket socket = new Socket(host, port));
 ```
 
-**- Choix du fichier:** Ce fichier sérialise les métadonnées produites par une analyse, on peut donc y ajouter une méthode qui les envoie à un collecteur.
-**- Vulnérabilé:** Les métadonnées continennent souvent des données sensibles, sur un socket non chiffré, toute personne sur le chemin réseau peut les lire et modifier.
-**- Semgrep:** `unencrypted-socket` at line 152.
+**- Choix du fichier :** Ce fichier sérialise les métadonnées produites par une analyse, on peut donc y ajouter une méthode qui les envoie à un collecteur.
+**- Vulnérabilé :** Les métadonnées continennent souvent des données sensibles, sur un socket non chiffré, toute personne sur le chemin réseau peut les lire et modifier.
+**- Semgrep :** `unencrypted-socket` at line 152.
 
 ## Comparaison des rapports Semgrep
 
-Les deux rapport ont été générés avec la même version Semgrep (1.184.0) et le même ruleset `p/java`.
-Garder ces paramètres identiques assure que toute différence entre les rapports viennent de nos changement de code, et non de changement d'outils ou de règles.
+Les deux rapports ont été générés avec la même version Semgrep (1.184.0) et le même ruleset `p/java`.
+Garder ces paramètres identiques assure que toute différence entre les rapports viennent de notre changement de code, et non de changement d'outils ou de règles.
 
 | Rapports | Fichiers                                    | Erreurs |
 | -------- | ------------------------------------------- | ------- |
 | Before   | `semgrep-before.json`, `semgrep-before.txt` | 0       |
 | After    | `semgrep-after.json`, `semgrep-after.txt`   | 7       |
 
-Le rapport «before» ne contenait pas d'erreurs, la comparaison est donc directe: chaque erreur de «after» est nouvelle par définition.
-La table ci dessous liste pour chaque règle qui a détecté une erreur, le nombre d'occurences dans les deux rapports.
+Le rapport «before» ne contenait pas d'erreurs, la comparaison est donc directe : chaque erreur de «after» est nouvelle par définition.
+La table ci-dessous liste pour chaque règle qui a détecté une erreur, le nombre d'occurences dans les deux rapports.
 
 | Règle                                                   | CWE | Before | After |
 | ------------------------------------------------------- | --- | ------ | ----- |
