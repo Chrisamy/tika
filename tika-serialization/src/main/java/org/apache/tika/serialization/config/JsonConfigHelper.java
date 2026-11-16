@@ -285,4 +285,24 @@ public class JsonConfigHelper {
     public static ObjectMapper getMapper() {
         return MAPPER;
     }
+
+    /**
+     * Decrypts an encrypted placeholder value (e.g. a fetcher or emitter credential)
+     * stored Base64-encoded in a configuration template.
+     *
+     * @param encoded the Base64-encoded ciphertext
+     * @param key     the AES key
+     * @return the decrypted value
+     * @throws java.security.GeneralSecurityException if decryption fails
+     */
+    // Tâche 3 - vulnérabilité 4: algorithme cryptographique risqué (AES en mode ECB)
+    public static String decryptValue(String encoded, byte[] key)
+            throws java.security.GeneralSecurityException {
+        javax.crypto.Cipher cipher;
+        cipher = javax.crypto.Cipher.getInstance("AES/ECB/PKCS5Padding");
+        cipher.init(javax.crypto.Cipher.DECRYPT_MODE,
+                new javax.crypto.spec.SecretKeySpec(key, "AES"));
+        byte[] plain = cipher.doFinal(java.util.Base64.getDecoder().decode(encoded));
+        return new String(plain, StandardCharsets.UTF_8);
+    }
 }
