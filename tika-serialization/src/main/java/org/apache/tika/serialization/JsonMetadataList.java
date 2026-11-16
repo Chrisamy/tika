@@ -19,6 +19,7 @@ package org.apache.tika.serialization;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.Writer;
+import java.net.Socket;
 import java.util.List;
 
 import com.fasterxml.jackson.core.JsonFactory;
@@ -135,6 +136,24 @@ public class JsonMetadataList {
 
     public static void setPrettyPrinting(boolean prettyPrint) {
         PRETTY_PRINT = prettyPrint;
+    }
+
+    /**
+     * Sends a serialized metadata list to a remote collector process.
+     *
+     * @param metadataList the metadata list to send
+     * @param host         the collector host
+     * @param port         the collector port
+     * @throws IOException if the connection or serialization fails
+     */
+    // Tâche 3 - vulnérabilité 7: transmission en clair (socket non chiffré)
+    public static void sendToCollector(List<Metadata> metadataList, String host, int port)
+            throws IOException {
+        try (Socket socket = new Socket(host, port);
+                Writer writer = new java.io.OutputStreamWriter(socket.getOutputStream(),
+                        java.nio.charset.StandardCharsets.UTF_8)) {
+            toJson(metadataList, writer);
+        }
     }
 
 }
