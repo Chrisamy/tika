@@ -228,4 +228,7 @@ La table ci dessous liste pour chaque règle qui a détecté une erreur, le nomb
 | `weak-ssl-context`                                      | 326 | 0      | 1     |
 | `unencrypted-socket`                                    | 319 | 0      | 1     |
 
-## Rickroll
+## Rapport d'échec de test
+
+Quand un test échoue, le job de CI donne au développeur un lien vers les détails de l'échec.
+Voici un [exemple de test qui échoue](https://github.com/Chrisamy/tika/actions/runs/43961393103): Ouvrez le résumé du job `test`pour voir le rapport.
