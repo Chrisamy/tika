@@ -232,3 +232,5 @@ La table ci-dessous liste pour chaque règle qui a détecté une erreur, le nomb
 
 Quand un test échoue, le job de CI donne au développeur un lien vers les détails de l'échec.
 Voici un [exemple de test qui échoue](https://github.com/Chrisamy/tika/actions/runs/43961393103): Ouvrez le résumé du job `test`pour voir le rapport.
+
+Pour voir le rapport sans casser un test, on a ajouté une option `force_fail` au lancement manuel du workflow. Dans l'onglet Actions, choisir `tache2 tika-serialization tests`, cliquer sur « Run workflow » et cocher « Faire échouer les tests pour vérifier le rapport ». Les tests roulent normalement, puis l'étape `tests` sort avec le code 1, ce qui déclenche le rapport.
