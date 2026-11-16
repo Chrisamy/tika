@@ -96,6 +96,7 @@ semgrep:
 
 Chaque scénario a été validé avec des commits et push individuels:
 
-| Scénario                       | Résultat attendu       | Lien du run                                                                     | Résultat observé       |
-| ------------------------------ | ---------------------- | ------------------------------------------------------------------------------- | ---------------------- |
-| Commit sans changement de code | Le job `semgrep` passe | https://github.com/Chrisamy/tika/actions/runs/43824502482/job/133154976357#logs | Le job `semgrep` passe |
+| Scénario                              | Résultat attendu                                      | Lien du run                                                                | Résultat observé                                      |
+| ------------------------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Commit sans changement de code        | Le job `semgrep` passe                                | https://github.com/Chrisamy/tika/actions/runs/43824502482/job/133154976357 | Le job `semgrep` passe                                |
+| Commit introduisant une vulnérabilité | Le job `semgrep` échoue, cette erreur est dans le log | https://github.com/Chrisamy/tika/actions/runs/43825462283/job/133158137456 | Le job `semgrep` échoue, cette erreur est dans le log |
