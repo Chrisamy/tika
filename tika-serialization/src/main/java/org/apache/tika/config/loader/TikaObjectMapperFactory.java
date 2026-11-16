@@ -84,6 +84,21 @@ public class TikaObjectMapperFactory {
         return PLAIN_MAPPER;
     }
 
+    /**
+     * Reads a polymorphic JSON configuration value whose concrete type is embedded in the JSON.
+     *
+     * @param json the JSON configuration value
+     * @return the deserialized object
+     * @throws java.io.IOException if the JSON cannot be read
+     */
+    // Tâche 3 - vulnérabilité 1: désérialisation non sécurisée (Jackson default typing)
+    @SuppressWarnings("deprecation")
+    public static Object readPolymorphicConfig(String json) throws java.io.IOException {
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.enableDefaultTyping();
+        return mapper.readValue(json, Object.class);
+    }
+
     public static synchronized ObjectMapper getMapper() {
         if (MAPPER == null) {
             MAPPER = createMapper();
