@@ -42,14 +42,15 @@ jobs:
           java-version: '17'
           cache: 'maven'
       - name: Build module dependencies (no unrelated tests)
-        run: ./mvnw -pl tika-serialization test -Dtest=ComponentNameResolverTest -B "-Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn"
-          if [ "${{ inputs.force_fail }}" = "true" ]; then
-          echo "Échec forcé pour tester le rickroll"
-          exit 1
-          fi
+        run: ./mvnw -pl tika-serialization -am install -DskipTests -B "-Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn"
       - name: Run tâche 2 tests only (ComponentNameResolverTest)
         id: tests
-        run: ./mvnw -pl tika-serialization test -Dtest=ComponentNameResolverTest -B "-Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn"
+        run: |
+          ./mvnw -pl tika-serialization test -Dtest=ComponentNameResolverTest -B "-Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn"
+          if [ "${{ inputs.force_fail }}" = "true" ]; then
+            echo "Échec forcé pour tester le rickroll"
+            exit 1
+          fi
       - name: On failure
         if: failure() && steps.tests.outcome == 'failure'
         uses: ./.github/actions/workflow
