@@ -101,3 +101,106 @@ Chaque scénario a été validé avec des commits et push individuels:
 | Commit sans changement de code                            | Le job `semgrep` passe                                                                  | https://github.com/Chrisamy/tika/actions/runs/43824502482/job/133154976357 | Le job `semgrep` passe                                |
 | Commit introduisant une vulnérabilité                     | Le job `semgrep` échoue, cette erreur est dans le log                                   | https://github.com/Chrisamy/tika/actions/runs/43825462283/job/133158137456 | Le job `semgrep` échoue, cette erreur est dans le log |
 | Commit avec changement sans rapport avec la vulnérabilité | Le job `semgrep` passe, car la vulnérabilité n'est pas nouvelle par rapport au baseline | https://github.com/Chrisamy/tika/actions/runs/43826237591/job/133160638704 | Le job `semgrep` passe                                |
+| Commit retirant la vulnérabilité                          | Le job `semgrep` passe encore                                                           | https://github.com/Chrisamy/tika/actions/runs/43826875758/job/133162697989 | Le job `semgrep` passe                                |
+
+## Vulnérabilités introduites
+
+Nous avons introduit sept vulnérabilités de types différents dans `tika-serialization/src/main/java`, chaqune détecté par une règle différente du ruleset `p/java`.
+Chaque vulnérabilité a son propre commit et CWE. Chaque vulnérabilité est une nouvelle méthode ajouté a une classe existante, aucune n'est appelée donc le module ne change pas de comportement.
+Après les changements, le module build et passe tous les tests.
+
+| Type                                       | CWE | Règle de Semgrep                                        | Fichier                                            | Ligne   | Commit                                   |
+| ------------------------------------------ | --- | ------------------------------------------------------- | -------------------------------------------------- | ------- | ---------------------------------------- |
+| Désérialisation non sécurisée              | 502 | `jackson-unsafe-desiralization`                         | `config/loader/TikaObjectMapperFactory.java`       | 99      | 5d6458640045216d8419ca98a539313bd321d469 |
+| XML external entities                      | 611 | `documentbuilderfactory-external-general-entities-true` | `config/loader/TikaLoader.java`                    | 213     | 6f4b3912a9972051309792aec7cc3435d93226ae |
+| Utilisation d'un hash faible               | 328 | `use-of-md5`                                            | `config/loader/ComponentRegistry.java`             | 182     | 59995682ed65a3e66f86b1cbd623c04c899e1467 |
+| Mode de chiffrement risqué                 | 327 | `use-of-aes-ecb`                                        | `serialization/config/JsonConfigHelper.java`       | 302     | 8fe01ce836c3b8ef0569bb387a9664b3d171dad2 |
+| Vecteur d'initialisation statique avec CBC | 329 | `no-static-initialization-vector`                       | `serialization/serdes/ParseContextSerializer.java` | 111-114 | 9a59309d6a8f75c717c66bdc5eaba1b6b36b5d33 |
+| Utilisation d'une version de TLS faible    | 326 | `weak-ssl-context`                                      | `config/loader/TikaJsonConfig.java`                | 170     | db78e8072c8bc6f856ac24df34fd601040fcbd1c |
+| Transmission en texte clair                | 319 | `unencrypted-socket`                                    | `serialization/JsonMetadataList.java`              | 152     | de90b611d664a77976b2002a4f3bf507d8f1b79c |
+
+### Désérialisation non sécurisée
+
+`TikaObjectMapperFactory.readPolymorphicConfig(String)`
+
+```java
+mapper.enableDefaultTyping();
+return mapper.readValue(json, Object.class);
+```
+
+**- Choix du fichier:** Ce fichier crée tout les ObjectMapper utilisés pour lire la configuration JSON de Tika., qui est polymorphique.
+**- Vulnérabilité:** Jackson instancie le nom de classe dans le JSON, et le le type cible `Object`permet n'importe quel type de classe. Si un attquant contrôle le JSON, il peut déclencher
+des classes « gadgets »
+**- Semgrep:** `jackson-unsafe-deserialization` at line 99.
+
+### XML external entities
+
+`TikaLoader.isLegacyXmlConfig(Path)`
+
+```java
+dbf.setFeature("http://xml.org/sax/features/external-general-entities", true);
+```
+
+**- Choix du fichier:** Ce fichier reçoit les chemins de configuration. Tika n'utilise cependant plus de configuration XML mais des configurations JSON.
+**- Vulnérabilité:** Le parseur résout les entités externes, donc un fichier XML peut lui faire lire des fichuier locaux ou contacter des URL internes.
+**- Semgrep:** `documentbuilderfactory-external-general-entities-true` at line 213 (severity ERROR).
+
+### Utilisation d'un hash faible
+
+`ComponentRegistry.fingerprint(URL)`
+
+```java
+java.security.MessageDigest.getInstance("MD5").digest(in.readAllBytes());
+```
+
+**- Choix du fichier:** Ce fichier fusionne les fichiers d'un certain index trouvé sur le classpath, on peut donc avoir un même fichier dans plusieurs jar.
+**- Vulnérabilité:** Les collisions MD5 sont assez simples à calculer, quelqu'un pourrait ajouter un jar au classpath un forger un fichier d'index différent avec la même signature.
+**- Semgrep:** `use-of-md5` at line 182.
+
+### Mode de chiffrement risqué
+
+`JsonConfigHelper.decryptValue(String, byte[])`
+
+```java
+cipher = javax.crypto.Cipher.getInstance("AES/ECB/PKCS5Padding");
+```
+
+**- Choix du fichier:** Ce fichier remplace les valeurs des paramètres fictifs des modèles de configuration, il est donc logique de déchiffrer des valeurs ici.
+**- Vulnérabilé:** ECB chiffre chaque bloc indépendamment et de façon déterministe, des blocs de texte clair identiques donnent des blocs chiffrés identiques.
+**- Semgrep:** `use-of-aes-ecb` at line 302.
+
+### Vecteur d'initialisation statique avec CBC
+
+`ParseContextSerializer.encryptSensitiveValue(String, byte[])`
+
+```java
+byte[] iv = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+```
+
+**- Choix du fichier:** Ce fichier écrit un ParseContext en JSON, qui peut transporter des secrets comme le mot de passe d'un PDF chiffré. On peut donc chiffrer avant la sérialisation.
+**- Vulnérabilé:** Le vecteur d'initialisation est un constant, CBC devient alors déterministe, le m^me mot de passe donne toujours le même texte chiffré, ce qui peut être exploité.
+**- Semgrep:** `no-static-initialization-vector` at lines 111–114.
+
+### Utilisation d'une version de TLS faible
+
+`TikaJsonConfig.buildTikaConfig(Path)`
+
+```java
+SSLContext sslContext = SSLContext.getInstance("TLSv1");
+```
+
+**- Choix du fichier:** Ce fichier contient déjà `load(Path)` et `load(InputStream)` donc il est logique d'y rajouter un `load(URL)`.
+**- Vulnérabilé:** TLSv1 est obsolète et a des faiblesses bien documentées. Un attaquant intermédiaire pourrait compromiser l'intégrité, l'authenticité et la confidentialité des données.
+**- Semgrep:** `weak-ssl-context` at line 170.
+
+### Transmission en texte clair
+
+`JsonMetadataList.sendToCollector(List<Metadata>, String, int)`
+
+```java
+try (Socket socket = new Socket(host, port));
+```
+
+**- Choix du fichier:** Ce fichier sérialise les métadonnées produites par une analyse, on peut donc y ajouter une méthode qui les envoie à un collecteur.
+**- Vulnérabilé:** Les métadonnées continennent souvent des données sensibles, sur un socket non chiffré, toute personne sur le chemin réseau peut les lire et modifier.
+**- Semgrep:** `unencrypted-socket` at line 152.

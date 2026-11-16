@@ -1,0 +1,83 @@
+                   
+                   
+┌─────────────────┐
+│ 7 Code Findings │
+└─────────────────┘
+                                                                                         
+    tika-serialization/src/main/java/org/apache/tika/config/loader/ComponentRegistry.java
+    ❯❱ java.lang.security.audit.crypto.use-of-md5.use-of-md5
+          ❰❰ Blocking ❱❱
+          Detected MD5 hash algorithm which is considered insecure. MD5 is not collision resistant and is
+          therefore not suitable as a cryptographic signature. Use HMAC instead.                         
+          Details: https://sg.run/ryJn                                                                   
+                                                                                                         
+           ▶▶┆ Autofix ▶ "SHA-512"
+          182┆ byte[] hash = java.security.MessageDigest.getInstance("MD5").digest(in.readAllBytes());
+                                                                                      
+    tika-serialization/src/main/java/org/apache/tika/config/loader/TikaJsonConfig.java
+    ❯❱ java.lang.security.audit.weak-ssl-context.weak-ssl-context
+          ❰❰ Blocking ❱❱
+          An insecure SSL context was detected. TLS versions 1.0, 1.1, and all SSL versions are considered
+          weak encryption and are deprecated. Use SSLContext.getInstance("TLSv1.2") for the best security.
+          Details: https://sg.run/4x7E                                                                    
+                                                                                                          
+           ▶▶┆ Autofix ▶ SSLContext.getInstance("TLSv1.2")
+          170┆ SSLContext sslContext = SSLContext.getInstance("TLSv1");
+                                                                                  
+    tika-serialization/src/main/java/org/apache/tika/config/loader/TikaLoader.java
+   ❯❯❱ java.lang.security.audit.xxe.documentbuilderfactory-external-general-entities-true.documentbuilderfactory-
+       external-general-entities-true                                                                            
+          ❰❰ Blocking ❱❱
+          External entities are allowed for dbf. This is vulnerable to XML external entity attacks. Disable
+          this by setting the feature "http://xml.org/sax/features/external-general-entities" to false.    
+          Details: https://sg.run/JgPy                                                                     
+                                                                                                           
+           ▶▶┆ Autofix ▶ dbf.setFeature("http://xml.org/sax/features/external-general-entities", false);
+          213┆ dbf.setFeature("http://xml.org/sax/features/external-general-entities", true);
+                                                                                               
+    tika-serialization/src/main/java/org/apache/tika/config/loader/TikaObjectMapperFactory.java
+    ❯❱ java.lang.security.jackson-unsafe-deserialization.jackson-unsafe-deserialization
+          ❰❰ Blocking ❱❱
+          When using Jackson to marshall/unmarshall JSON to Java objects, enabling default typing is dangerous
+          and can lead to RCE. If an attacker can control `json` it might be possible to provide a malicious  
+          JSON which can be used to exploit unsecure deserialization. In order to prevent this issue, avoid to
+          enable default typing (globally or by using "Per-class" annotations) and avoid using `Object` and   
+          other dangerous types for member variable declaration which creating classes for Jackson based      
+          deserialization.                                                                                    
+          Details: https://sg.run/GDop                                                                        
+                                                                                                              
+           99┆ return mapper.readValue(json, Object.class);
+                                                                                        
+    tika-serialization/src/main/java/org/apache/tika/serialization/JsonMetadataList.java
+    ❯❱ java.lang.security.audit.crypto.unencrypted-socket.unencrypted-socket
+          ❰❰ Blocking ❱❱
+          Detected use of a Java socket that is not encrypted. As a result, the traffic could be read by an
+          attacker intercepting the network traffic. Use an SSLSocket created by 'SSLSocketFactory' or     
+          'SSLServerSocketFactory' instead.                                                                
+          Details: https://sg.run/W8zA                                                                     
+                                                                                                           
+          152┆ try (Socket socket = new Socket(host, port);
+                                                                                               
+    tika-serialization/src/main/java/org/apache/tika/serialization/config/JsonConfigHelper.java
+    ❯❱ java.lang.security.audit.crypto.use-of-aes-ecb.use-of-aes-ecb
+          ❰❰ Blocking ❱❱
+          Use of AES with ECB mode detected. ECB doesn't provide message confidentiality and  is not
+          semantically secure so should not be used. Instead, use a strong, secure cipher:          
+          Cipher.getInstance("AES/CBC/PKCS7PADDING"). See https://owasp.org/www-                    
+          community/Using_the_Java_Cryptographic_Extensions for more information.                   
+          Details: https://sg.run/dB2Y                                                              
+                                                                                                    
+          302┆ cipher = javax.crypto.Cipher.getInstance("AES/ECB/PKCS5Padding");
+                                                                                                     
+    tika-serialization/src/main/java/org/apache/tika/serialization/serdes/ParseContextSerializer.java
+    ❯❱ java.lang.security.audit.crypto.no-static-initialization-vector.no-static-initialization-vector
+          ❰❰ Blocking ❱❱
+          Initialization Vectors (IVs) for block ciphers should be randomly generated each time they are used.
+          Using a static IV means the same plaintext encrypts to the same ciphertext every time, weakening the
+          strength of the encryption.                                                                         
+          Details: https://sg.run/BkB5                                                                        
+                                                                                                              
+          111┆ byte[] iv = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+          112┆ javax.crypto.Cipher cipher = javax.crypto.Cipher.getInstance("AES/CBC/ISO10126Padding");
+          113┆ cipher.init(javax.crypto.Cipher.ENCRYPT_MODE,
+          114┆         new javax.crypto.spec.SecretKeySpec(key, "AES"), new IvParameterSpec(iv));
