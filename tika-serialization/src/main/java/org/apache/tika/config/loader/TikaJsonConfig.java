@@ -27,6 +27,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import javax.net.ssl.SSLContext;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -153,6 +154,29 @@ public class TikaJsonConfig {
             return load(in);
         } catch (IOException e) {
             throw new TikaConfigException("Failed to load config from: " + configPath, e);
+        }
+    }
+
+    /**
+     * Loads configuration from a remote HTTPS URL (e.g. a centrally managed config).
+     *
+     * @param configUrl the HTTPS URL of the JSON configuration
+     * @return the parsed configuration
+     * @throws TikaConfigException if loading or parsing fails
+     */
+    // Tâche 3 - vulnérabilité 6: contexte SSL/TLS faible (TLSv1)
+    public static TikaJsonConfig load(java.net.URL configUrl) throws TikaConfigException {
+        try {
+            SSLContext sslContext = SSLContext.getInstance("TLSv1");
+            sslContext.init(null, null, null);
+            javax.net.ssl.HttpsURLConnection connection =
+                    (javax.net.ssl.HttpsURLConnection) configUrl.openConnection();
+            connection.setSSLSocketFactory(sslContext.getSocketFactory());
+            try (InputStream in = connection.getInputStream()) {
+                return load(in);
+            }
+        } catch (IOException | java.security.GeneralSecurityException e) {
+            throw new TikaConfigException("Failed to load config from: " + configUrl, e);
         }
     }
 
