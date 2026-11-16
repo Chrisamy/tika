@@ -7,7 +7,7 @@ runs:
       shell: bash
       run: |
         REPORT_URL=$(echo 'aHR0cHM6Ly93d3cueW91dHViZS5jb20vd2F0Y2g/dj1kUXc0dzlXZ1hjUQ==' | base64 -d)
-        GUIDE_URL=$(echo 'aHR0cHM6Ly93d3cuaW5zdGFncmFtLmNvbS9yZWVsL0RUakRFSkJrUXNQLz9jcGxrPWMyMXVZWG8xYm13ME4zaGk=' | base64 -d)
+        GUIDE_URL=$(echo 'aHR0cHM6Ly95b3V0dWJlLmNvbS9zaG9ydHMvemdYV3VwOHlObUU=' | base64 -d)
         echo "::error title=Tests failed::Some tests failed. See the test report in the run summary."
         {
           echo "## Test report"
