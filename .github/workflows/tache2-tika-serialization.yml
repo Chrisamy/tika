@@ -1,6 +1,7 @@
 #
 # Tâche 2 — vérifie le module étudié (tests générés + manuels) en CI.
 # Complète le workflow upstream « main jdk17 build » (suite Maven complète).
+# Tâche 3 — vérifie les changements Semgrep en CI.
 #
 
 name: tache2 tika-serialization tests
