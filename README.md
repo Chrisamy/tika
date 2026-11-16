@@ -204,3 +204,28 @@ try (Socket socket = new Socket(host, port));
 **- Choix du fichier:** Ce fichier sérialise les métadonnées produites par une analyse, on peut donc y ajouter une méthode qui les envoie à un collecteur.
 **- Vulnérabilé:** Les métadonnées continennent souvent des données sensibles, sur un socket non chiffré, toute personne sur le chemin réseau peut les lire et modifier.
 **- Semgrep:** `unencrypted-socket` at line 152.
+
+## Comparaison des rapports Semgrep
+
+Les deux rapport ont été générés avec la même version Semgrep (1.184.0) et le même ruleset `p/java`.
+Garder ces paramètres identiques assure que toute différence entre les rapports viennent de nos changement de code, et non de changement d'outils ou de règles.
+
+| Rapports | Fichiers                                    | Erreurs |
+| -------- | ------------------------------------------- | ------- |
+| Before   | `semgrep-before.json`, `semgrep-before.txt` | 0       |
+| After    | `semgrep-after.json`, `semgrep-after.txt`   | 7       |
+
+Le rapport «before» ne contenait pas d'erreurs, la comparaison est donc directe: chaque erreur de «after» est nouvelle par définition.
+La table ci dessous liste pour chaque règle qui a détecté une erreur, le nombre d'occurences dans les deux rapports.
+
+| Règle                                                   | CWE | Before | After |
+| ------------------------------------------------------- | --- | ------ | ----- |
+| `jackson-unsafe-deserialization`                        | 502 | 0      | 1     |
+| `documentbuilderfactory-external-general-entities-true` | 611 | 0      | 1     |
+| `use-of-md5`                                            | 328 | 0      | 1     |
+| `use-of-aes-ecb`                                        | 327 | 0      | 1     |
+| `no-static-initialization-vector`                       | 329 | 0      | 1     |
+| `weak-ssl-context`                                      | 326 | 0      | 1     |
+| `unencrypted-socket`                                    | 319 | 0      | 1     |
+
+## Rickroll
