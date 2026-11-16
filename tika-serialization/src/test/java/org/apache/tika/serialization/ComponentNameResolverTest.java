@@ -917,5 +917,10 @@ public class ComponentNameResolverTest {
             // Assert
             assertNull(result);
         }
+
+        @Test
+        void testFail() {
+            assertEquals(1, 2, "Intentionally failing test");
+        }
     }
 }
