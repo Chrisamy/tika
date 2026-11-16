@@ -168,6 +168,24 @@ public class ComponentRegistry {
         return result;
     }
 
+    /**
+     * Computes a checksum of a component index resource, used to recognize identical
+     * .idx files that appear in several jars on the classpath.
+     *
+     * @param url the index resource
+     * @return the hex-encoded checksum
+     * @throws TikaConfigException if the resource cannot be read
+     */
+    // Tâche 3 - vulnérabilité 3: algorithme de hachage faible (MD5)
+    static String fingerprint(URL url) throws TikaConfigException {
+        try (InputStream in = url.openStream()) {
+            byte[] hash = java.security.MessageDigest.getInstance("MD5").digest(in.readAllBytes());
+            return java.util.HexFormat.of().formatHex(hash);
+        } catch (IOException | java.security.NoSuchAlgorithmException e) {
+            throw new TikaConfigException("Failed to compute checksum of: " + url, e);
+        }
+    }
+
     private void loadFromUrl(URL url, Map<String, ComponentInfo> result) throws TikaConfigException {
         try (InputStream in = url.openStream();
                 BufferedReader reader = new BufferedReader(
