@@ -10,7 +10,7 @@
 Cette étude porte sur l'automatisation des tests de sécurité avec Semgrep.
 Le travail de la tâche 3 est fait sur la branche tache3, créée à partir de la branche main à la fin de la tâche 2. Le point de départ est utilisé comme référence pour le «before» du rapport Semgrep.
 
-La même version Semgrep est utilisée pour le scan local «before», le scan local «after» et le job de CI. Ceci importe parce que le ruleset `p/java` ainsi que le Semgrep lui même
+La même version Semgrep (1.184.0) est utilisée pour le scan local «before», le scan local «after» et le job de CI. Ceci importe parce que le ruleset `p/java` ainsi que le Semgrep lui même
 évolue au fil du temps: une nouvelle version pourrait rapporter des erreurs qui n'ont pas été introduit par nos modifications, ce qui modifierait la comparaison entre le «before» et le «after».
 
 ## Rapport Semgrep avant modifications
@@ -18,9 +18,9 @@ La même version Semgrep est utilisée pour le scan local «before», le scan lo
 Le rapport baseline a été généré avant toute autre modification, a partir de la racine du repo:
 
 ```bash
-MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/src" -w /src semgrep/semgrep:TODO \
+MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/src" -w /src semgrep/semgrep:1.184.0 \
   semgrep scan --config p/java --metrics=off --json -o tache3/reports/semgrep-before.json tika-serialization
-MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/src" -w /src semgrep/semgrep:TODO \
+MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/src" -w /src semgrep/semgrep:1.184.0 \
   semgrep scan --config p/java --metrics=off -o tache3/reports/semgrep-before.txt tika-serialization
 ```
 
