@@ -93,3 +93,9 @@ semgrep:
 **Périmètre du scan.** Le scan est limité à `tika-serialization` pour éviter de scanner des fichiers qui ne sont pas pertinents pour la tâche 3.
 
 ### Validation
+
+Chaque scénario a été validé avec des commits et push individuels:
+
+| Scénario                       | Résultat attendu       | Lien du run                                                                     | Résultat observé       |
+| ------------------------------ | ---------------------- | ------------------------------------------------------------------------------- | ---------------------- |
+| Commit sans changement de code | Le job `semgrep` passe | https://github.com/Chrisamy/tika/actions/runs/43824502482/job/133154976357#logs | Le job `semgrep` passe |
