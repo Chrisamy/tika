@@ -12,7 +12,7 @@ on:
     paths:
       - 'tika-serialization/**'
       - '.github/workflows/tache2-tika-serialization.yml'
-      - '.github/actions/action.yml'
+      - '.github/actions/workflow/**'
       - '.github/workflows/main-jdk*.yml'
       - '.github/workflows/docker-*.yml'
       - '.github/workflows/split-packages.yml'
@@ -21,7 +21,7 @@ on:
     paths:
       - 'tika-serialization/**'
       - '.github/workflows/tache2-tika-serialization.yml'
-      - '.github/actions/action.yml'
+      - '.github/actions/workflow/**'
   workflow_dispatch:
 
 jobs:
@@ -43,7 +43,7 @@ jobs:
         run: ./mvnw -pl tika-serialization test -Dtest=ComponentNameResolverTest -B "-Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn"
       - name: On failure
         if: failure() && steps.tests.outcome == 'failure'
-        uses: ./.github/actions/action.yml
+        uses: ./.github/actions/workflow
   semgrep:
     name: Semgrep
     runs-on: ubuntu-latest
