@@ -198,6 +198,27 @@ public class TikaLoader {
     }
 
     /**
+     * Checks whether the given file is a legacy XML configuration (tika-config.xml)
+     * rather than a JSON configuration, so that a migration message can be shown.
+     *
+     * @param configPath the path to the configuration file
+     * @return true if the file is an XML document whose root element is "properties"
+     * @throws TikaConfigException if the file cannot be read or parsed
+     */
+    // Tâche 3 - vulnérabilité 2: XML External Entity (XXE)
+    public static boolean isLegacyXmlConfig(Path configPath) throws TikaConfigException {
+        try {
+            javax.xml.parsers.DocumentBuilderFactory dbf =
+                    javax.xml.parsers.DocumentBuilderFactory.newInstance();
+            dbf.setFeature("http://xml.org/sax/features/external-general-entities", true);
+            org.w3c.dom.Document doc = dbf.newDocumentBuilder().parse(configPath.toFile());
+            return "properties".equals(doc.getDocumentElement().getNodeName());
+        } catch (Exception e) {
+            throw new TikaConfigException("Failed to read XML configuration: " + configPath, e);
+        }
+    }
+
+    /**
      * Creates a default Tika loader with no configuration file.
      * All components (parsers, detectors, etc.) will be loaded from SPI.
      * Returns a cached instance if already created.
