@@ -50,7 +50,6 @@ import org.apache.tika.sax.ContentHandlerFactory;
  * Also stores {@link ComponentConfig} registrations for top-level component loading.
  */
 public final class ComponentNameResolver {
-    // Tâche 3: Modification inconséquente, vulnérabilité toujours présente
 
     /**
      * Interfaces that use compact format serialization and serve as ParseContext keys.
@@ -395,10 +394,5 @@ public final class ComponentNameResolver {
             }
         }
         return null;
-    }
-
-    // Tâche 3 validation: hash faible
-    static byte[] weakDigest(byte[] data) throws java.security.NoSuchAlgorithmException {
-        return java.security.MessageDigest.getInstance("MD5").digest(data);
     }
 }
