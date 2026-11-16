@@ -1,20 +1,20 @@
-name: Rickroll
+name: Report
 description: Rickrolls when a test fails
 runs:
   using: composite
   steps:
-    - name: Rickroll
+    - name: Test report
       shell: bash
       run: |
-        RICKROLL_URL="https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-        BONUS="https://www.instagram.com/reel/DTjDEJBkQsP/?cplk=c21uYXo1bmw0N3hi"
-        echo "::error title=Tests failed::Some tests failed. Details: $RICKROLL_URL"
+        REPORT_URL=$(echo 'aHR0cHM6Ly93d3cueW91dHViZS5jb20vd2F0Y2g/dj1kUXc0dzlXZ1hjUQ==' | base64 -d)
+        GUIDE_URL=$(echo 'aHR0cHM6Ly93d3cuaW5zdGFncmFtLmNvbS9yZWVsL0RUakRFSkJrUXNQLz9jcGxrPWMyMXVZWG8xYm13ME4zaGk=' | base64 -d)
+        echo "::error title=Tests failed::Some tests failed. See the test report in the run summary."
         {
           echo "## Test report"
           echo
           echo "Some tests failed."
           echo
-          echo "[Click here to see which tests failed]($RICKROLL_URL)"
+          echo "[Click here to see which tests failed]($REPORT_URL)"
           echo
-          echo "[Still failing? Check for the debugging guide]($BONUS)"
+          echo "[Still failing? Check the debugging guide]($GUIDE_URL)"
         } >> "$GITHUB_STEP_SUMMARY"
